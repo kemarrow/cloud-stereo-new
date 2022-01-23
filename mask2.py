@@ -1,3 +1,8 @@
+"""
+Mask for buildings of camera 1 and camera 3
+@author: Erin
+"""
+
 import numpy as np
 import matplotlib.path as mpltPath
 import cv2 as cv
@@ -225,14 +230,14 @@ mask_C3 = gen_mask(img3_mask, (640, 480), timemask=mask_points_time3)
 #img1 = cv.imread(r'Frames/lowres_output_C1_20211004_11/C1_041021_frame_0.jpg')  # camera 1 image
 #img3 = cv.imread(r'Frames/output_C3_20211004_11/C3_041021_frame_0.jpg') # camera 3 image
 
-img1 = cv.imread(r'Frames/lowres_C1_frame_0.jpg')
-img3 = cv.imread(r'Frames/C3_frame_0.jpg')
+#img1 = cv.imread(r'Frames/lowres_C1_frame_0.jpg')
+#img3 = cv.imread(r'Frames/C3_frame_0.jpg')
 #img1 = cv.imread(r"C:\Users\kathe\OneDrive - Imperial College London\MSci Project\lowres_output_C1_20211004_11\C1_041021_frame_8.jpg")
 #img3 = cv.imread(r"C:\Users\kathe\OneDrive - Imperial College London\MSci Project\output_C3_20211004_11\C3_041021_frame_8.jpg") # camera 2 image
 
 #print(mask_left)
-img1_masked = cv.bitwise_and(img1, img1, mask=mask_C1)
-img3_masked = cv.bitwise_and(img3, img3, mask=mask_C3)
+#img1_masked = cv.bitwise_and(img1, img1, mask=mask_C1)
+#img3_masked = cv.bitwise_and(img3, img3, mask=mask_C3)
 #img3_masked = img3+mask_right[0:1]
 # fig, ((ax1,ax2,ax3), (ax4, ax5, ax6)) = plt.subplots(2,3) 
 # ax1.imshow(img1)
@@ -243,8 +248,8 @@ img3_masked = cv.bitwise_and(img3, img3, mask=mask_C3)
 # ax6.imshow(img3_masked)
 #plt.show()
 
-cv.imwrite("img1_masked.png", img1_masked)
-cv.imwrite("img3_masked.png", img3_masked)
+#cv.imwrite("img1_masked.png", img1_masked)
+#cv.imwrite("img3_masked.png", img3_masked)
 
 
 
