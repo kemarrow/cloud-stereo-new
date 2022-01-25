@@ -64,9 +64,9 @@ stereo = cv.StereoSGBM_create(minDisparity= min_disp,
  P2 =32*3*win_size**2)
 
 #It is based on Gunner Farneback's algorithm which is explained in "Two-Frame Motion Estimation Based on Polynomial Expansion" by Gunner Farneback in 2003.
-vidcapR = cv.VideoCapture(r'Videos/lowres_C1_2021-10-24_12A.mp4')
-vidcapL = cv.VideoCapture(r'Videos/C3_2021-10-24_12A.mp4')
-cap = cv.VideoCapture(r'Videos/lowres_C1_2021-10-24_12A.mp4')
+vidcapR = cv.VideoCapture(r'Videos/lowres_C1_2021-10-03_12A.mp4')
+vidcapL = cv.VideoCapture(r'Videos/C3_2021-10-03_12A.mp4')
+cap = cv.VideoCapture(r'Videos/lowres_C1_2021-10-03_12A.mp4')
 
 #cap2 = cv.VideoCapture('depth_10_24_12A.mp4')
 ret, frame1 = cap.read()
@@ -181,15 +181,22 @@ while(1):
     im3d1[im3d1 == -np.inf] = None
     im3d1[im3d1 > 9000] = None
 
+    tilt = 25 * np.pi/180
+    height_camera = 46
+
     depths = np.sqrt(im3d[:,:,0]**2 + im3d[:,:,1]**2 + im3d[:,:,2]**2)
     depths = cv.bitwise_and(depths, depths, mask=disp_mask)
     depths[depths > 9000] = None
-    z = cv.bitwise_and(im3d[:,:,2], im3d[:,:,2], mask=disp_mask)
+    angle  = np.arccos(im3d[:,:,2]/depths)
+    z = depths * np.sin(angle + tilt) + height_camera
+    z = cv.bitwise_and(z, z, mask=disp_mask)
 
     depths1 = np.sqrt(im3d1[:,:,0]**2 + im3d1[:,:,1]**2 + im3d1[:,:,2]**2)
     depths1 = cv.bitwise_and(depths1, depths1, mask=disp_mask1)
     depths1[depths1 > 9000] = None
-    z1 = cv.bitwise_and(im3d1[:,:,2], im3d1[:,:,2], mask=disp_mask1)
+    angle1  = np.arccos(im3d1[:,:,2]/depths1)
+    z1 = depths1 * np.sin(angle1 + tilt) + height_camera
+    z1 = cv.bitwise_and(z1, z1, mask=disp_mask1)
 
     #change in depth between 2 frames
     delta_depths =[]
@@ -338,13 +345,13 @@ while(1):
     prvsL1 = imgL
 cv.destroyAllWindows()
 
-#cloud_height  = np.reshape(cloud_height, (480*640*716, 1))
-#cloud_speed  = np.reshape(cloud_speed, (480*640*716, 1))
+cloud_height  = np.reshape(cloud_height, (480*640*716, 1))
+cloud_speed  = np.reshape(cloud_speed, (480*640*716, 1))
 cloud_updraft  = np.reshape(cloud_updraft, (480*640*716, 1))
 
-#np.savetxt('cloud_height3.csv', cloud_height , delimiter=',', fmt='%s')
-#np.savetxt('cloud_speed2.csv', cloud_speed , delimiter=',', fmt='%s')
-np.savetxt('cloud_updraft3.csv', cloud_updraft , delimiter=',', fmt='%s')
+np.savetxt('cloud_height.csv', cloud_height , delimiter=',', fmt='%s')
+np.savetxt('cloud_speed.csv', cloud_speed , delimiter=',', fmt='%s')
+np.savetxt('cloud_updraft.csv', cloud_updraft , delimiter=',', fmt='%s')
 
 
 print('done')
