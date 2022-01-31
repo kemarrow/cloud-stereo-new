@@ -3,7 +3,7 @@ Plots heat map of speed and updraft
 
 @author: Erin
 """
-#not correct 
+
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -21,7 +21,7 @@ print(np.shape(updraft_flat))
 print(np.shape(xh))
 
 idx = (~np.isnan(x+y))
-fig6, (ax6, ax7) = plt.subplots(1,1)
+fig6, (ax6, ax7) = plt.subplots(1, 2)
 H, xedges, yedges = np.histogram2d(x[idx], y[idx], bins=(100, 100))# range=[[1000, 9000], [0,200]] )
 extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
 spd = ax6.imshow(H.T, extent=extent, interpolation='nearest', origin='lower', cmap='coolwarm', aspect='auto')

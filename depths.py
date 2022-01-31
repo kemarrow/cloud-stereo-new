@@ -7,7 +7,7 @@ import numpy as np
 import cv2 as cv
 from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from mask2 import img1_masked, img3_masked
+
 from bearings import rotation_matrix, translation_vector, baseline_dist
 from mask2 import mask_C1, mask_C3
 
@@ -49,8 +49,8 @@ CamM_right = np.array([[5.520688775958645920e+02,0.000000000000000000e+00,3.2258
 Distort_left = np.array([2.808374038768443048e-01,-9.909134707088265159e-01,6.299531255281858727e-04,-1.301770463801651002e-03,1.093982545460403522e+00])
 Distort_right = np.array([2.808374038768443048e-01,-9.909134707088265159e-01,6.299531255281858727e-04,-1.301770463801651002e-03,1.093982545460403522e+00])
 
-vidcapR = cv.VideoCapture(r'Videos/lowres_C1_2021-10-09_12A.mp4')
-vidcapL = cv.VideoCapture(r'Videos/C3_2021-10-09_12A.mp4')
+vidcapR = cv.VideoCapture(r'Videos/lowres_C1_2021-10-03_12A.mp4')
+vidcapL = cv.VideoCapture(r'Videos/C3_2021-10-03_12A.mp4')
 
 #Set disparity parameters
 #Note: disparity range is tuned according to specific parameters obtained through trial and error.
@@ -75,6 +75,7 @@ stereo = cv.StereoSGBM_create(minDisparity= min_disp,
 h  = 480
 w = 640
 
+count = 0
 #find new camera matrix  
 new_camera_matrixleft, roi = cv.getOptimalNewCameraMatrix(CamM_left,Distort_left,(w,h),1,(w,h))
 new_camera_matrixright, roi = cv.getOptimalNewCameraMatrix(CamM_right,Distort_right,(w,h),1,(w,h))
@@ -84,12 +85,12 @@ mapLx, mapLy = cv.initUndistortRectifyMap(new_camera_matrixleft, Distort_left, R
 mapRx, mapRy = cv.initUndistortRectifyMap(new_camera_matrixright, Distort_right, Rright, Pright, (w,h), cv.CV_32FC1)
 
 while(vidcapR.isOpened() and vidcapL.isOpened()):
-    success, imgR1 = vidcapR.read()
-    success2, imgL1 = vidcapL.read()
+    success, imgR = vidcapR.read()
+    success2, imgL = vidcapL.read()
     if success==True and success2==True:
         #apply mask to buildings for each image
-        imgR = cv.bitwise_and(imgR1, imgR1, mask=mask_C1[:, :, 0])
-        imgL = cv.bitwise_and(imgL1, imgL1, mask=mask_C3[:, :, 0])
+        imgR = cv.bitwise_and(imgR, imgR, mask=mask_C1[:, :, 0])
+        imgL = cv.bitwise_and(imgL, imgL, mask=mask_C3[:, :, 0])
 
         #Undistort images
         imgR_undistorted = cv.undistort(imgR, CamM_right, Distort_right, None, new_camera_matrixright)
@@ -106,7 +107,9 @@ while(vidcapR.isOpened() and vidcapL.isOpened()):
                             borderValue=(0, 0, 0, 0))
                 
         #combine mask1 and mask3 and rectify 
-        new_mask = mask_C1[:,:,0] & mask_C3[:,:,0]
+        rg_ratio1 = imgR[:, :, 1]/imgR[:, :, 2]
+        new_mask =  mask_C1[:,:,0] & mask_C3[:,:,0] & (rg_ratio1<1.1) & (rg_ratio1>0.93)
+
         disp_mask = cv.remap(new_mask, mapLx, mapLy,
                             interpolation=cv.INTER_NEAREST,
                             borderMode=cv.BORDER_CONSTANT,
@@ -115,6 +118,7 @@ while(vidcapR.isOpened() and vidcapL.isOpened()):
         #compute disparity map for the rectified images
         disparity_map2 = stereo.compute(rimgL, rimgR).astype(np.float32)
 
+        #convert to depth
         im3d = cv.reprojectImageTo3D(disparity_map2/32, Q, handleMissingValues = True)
 
         #set out of range depths to 0
@@ -122,12 +126,21 @@ while(vidcapR.isOpened() and vidcapL.isOpened()):
         im3d[im3d == 10000] = 0
         im3d[im3d == -np.inf] = 0
         im3d[im3d > 9000] = 0
-        
+
         depths = np.sqrt(im3d[:,:,0]**2 + im3d[:,:,1]**2 + im3d[:,:,2]**2)
         depths = cv.bitwise_and(depths, depths, mask=disp_mask)
+
+        #depths =  np.array(depths/255)
+
+        #depths = cv.cvtColor(depths, cv.COLOR_GRAY2BGR)
+
+        #cv.imwrite("Depth_frames/frame%d.jpg" % count, depths)
+        #count +=1
+
+        #depths = cv.cvtColor(depths, cv.COLOR_BGR2GRAY)
         #plot
         fig, (ax1,ax2,ax3,ax4, ax5) = plt.subplots(1,5, sharex=True, sharey = True)
-        ax5.imshow(disp_mask)
+        ax5.imshow(disp_mask) #plot rectified mask to check
         ax1.imshow(rimgR,'gray')
         ax1.set_xlabel('Camera 1')
 
@@ -141,7 +154,7 @@ while(vidcapR.isOpened() and vidcapL.isOpened()):
         fig.colorbar(disp, cax=cax, orientation='vertical')
 
         depth = ax4.imshow(depths, 'coolwarm')
-        ax4.set_xlabel('distance map')
+        ax4.set_xlabel('Depth map')
         divider2 = make_axes_locatable(ax4)
         cax2 = divider2.append_axes('right', size='5%', pad=0.05)
         fig.colorbar(depth, cax=cax2, orientation='vertical')
