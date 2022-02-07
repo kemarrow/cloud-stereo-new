@@ -107,7 +107,7 @@ while(vidcapR.isOpened() and vidcapL.isOpened()):
                             borderValue=(0, 0, 0, 0))
                 
         #combine mask1 and mask3 and rectify 
-        rg_ratio1 = imgR[:, :, 1]/imgR[:, :, 2]
+        rg_ratio1 = imgL[:, :, 1]/imgL[:, :, 2]
         new_mask =  mask_C1[:,:,0] & mask_C3[:,:,0] & (rg_ratio1<1.1) & (rg_ratio1>0.93)
 
         disp_mask = cv.remap(new_mask, mapLx, mapLy,
