@@ -3,26 +3,24 @@ Plots heat map of speed and updraft
 
 @author: Erin
 """
-#not correct 
-
 import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-height = np.loadtxt('cloud_height.csv', delimiter =  ',')
-speed = np.loadtxt('cloud_speed.csv', delimiter =  ',')
-updraft  = np.loadtxt('cloud_updraft.csv', delimiter =  ',')
+date =  '2021-10-24_10A'
+height = np.loadtxt('data/cloud_height_'+date+'.csv', delimiter =  ',')
+speed = np.loadtxt('data/cloud_speed_'+date+'.csv', delimiter =  ',')
+updraft  = np.loadtxt('data/cloud_updraft_'+date+'.csv', delimiter =  ',')
 
 x = height.flatten()
 y = speed.flatten()
 updraft_flat = updraft.flatten()
 xh =  x
-print(np.shape(updraft_flat))
-print(np.shape(xh))
+#print(np.shape(updraft_flat))
+#print(np.shape(xh))
 
 idx = (~np.isnan(x+y))
-fig6, (ax6, ax7) = plt.subplots(1,1)
-H, xedges, yedges = np.histogram2d(x[idx], y[idx], bins=(100, 100))# range=[[1000, 9000], [0,200]] )
+fig6, (ax6, ax7) = plt.subplots(1, 2)
+H, xedges, yedges = np.histogram2d(x[idx], y[idx], bins=(100, 100), range=[[500, 6000], [0,50]])
 extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
 spd = ax6.imshow(H.T, extent=extent, interpolation='nearest', origin='lower', cmap='coolwarm', aspect='auto')
 divider = make_axes_locatable(ax6)
@@ -34,7 +32,7 @@ ax6.set_ylabel('Speed (m/s)')
 
 idxh = (~np.isnan(xh+updraft_flat))
 #fig7, ax7 = plt.subplots(1,1)
-Hh, xedgesh, yedgesh = np.histogram2d(xh[idxh], updraft_flat[idxh], bins=(100, 100))
+Hh, xedgesh, yedgesh = np.histogram2d(xh[idxh], updraft_flat[idxh], bins=(100, 100), range=[[500, 6000], [-30,30]])
 extenth = [xedgesh[0], xedgesh[-1], yedgesh[0], yedgesh[-1]]
 upd = ax7.imshow(Hh.T, extent=extenth, interpolation='nearest', origin='lower', cmap='coolwarm', aspect='auto')
 dividerh = make_axes_locatable(ax7)

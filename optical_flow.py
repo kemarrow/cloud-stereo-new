@@ -64,13 +64,16 @@ stereo = cv.StereoSGBM_create(minDisparity= min_disp,
  P2 =32*3*win_size**2)
 
 #It is based on Gunner Farneback's algorithm which is explained in "Two-Frame Motion Estimation Based on Polynomial Expansion" by Gunner Farneback in 2003.
-vidcapR = cv.VideoCapture(r'Videos/lowres_C1_2021-10-03_12A.mp4')
-vidcapL = cv.VideoCapture(r'Videos/C3_2021-10-03_12A.mp4')
-cap = cv.VideoCapture(r'Videos/lowres_C1_2021-10-03_12A.mp4')
+date = '2021-10-24_11A'
+vidcapR = cv.VideoCapture('Videos/lowres_C1_'+ date+'.mp4')
+vidcapL = cv.VideoCapture('Videos/C3_'+ date+'.mp4')
+cap = cv.VideoCapture('Videos/C3_'+date+'.mp4')
 
 #cap2 = cv.VideoCapture('depth_10_24_12A.mp4')
 ret, frame1 = cap.read()
 #ret2, img = cap2.read()
+backSub = cv.createBackgroundSubtractorKNN()
+#backSub = cv.createBackgroundSubtractorMOG2(detectShadows= True) #default is True, not sure which one to choose
 
 success, imgR = vidcapR.read()
 success2, imgL = vidcapL.read()
@@ -111,7 +114,9 @@ while(1):
     hsv[..., 0] = ang*180/np.pi/2
     hsv[..., 2] = cv.normalize(mag, None, 0, 255, cv.NORM_MINMAX)
     bgr = cv.cvtColor(hsv, cv.COLOR_HSV2BGR)
-    bgr = cv.bitwise_and(bgr, bgr, mask=mask_C1)
+    bgr = cv.bitwise_and(bgr, bgr, mask=mask_C3)
+
+    #bgr = backSub.apply(z)
     bgr = cv.remap(bgr, mapLx, mapLy,
                             interpolation=cv.INTER_NEAREST,
                             borderMode=cv.BORDER_CONSTANT,
@@ -147,11 +152,16 @@ while(1):
                             borderValue=(0, 0, 0, 0))
                 
         #combine mask1 and mask3 and rectify 
-    rg_ratio = imgR[:, :, 1]/imgR[:, :, 2]
-    new_mask =  mask_C1[:,:,0] & mask_C3[:,:,0] & (rg_ratio<1.1) & (rg_ratio>0.93)
 
-    rg_ratio1 = prvsR1[:, :, 1]/prvsR1[:, :, 2]
-    new_mask1 =  mask_C1[:,:,0] & mask_C3[:,:,0] & (rg_ratio1<1.1) & (rg_ratio1>0.93)
+    maskL = backSub.apply(imgL)
+    maskL1 = backSub.apply(prvsL1)
+    #rimgRm = cv.bitwise_and(frame, frame, mask=fgMask)
+    
+    #rg_ratio = imgL[:, :, 1]/imgL[:, :, 2]
+    new_mask =  maskL & mask_C1[:,:,0] & mask_C3[:,:,0] 
+    
+    #rg_ratio1 = prvsL1[:, :, 1]/prvsL1[:, :, 2]
+    new_mask1 =  maskL1 & mask_C1[:,:,0] & mask_C3[:,:,0] #(rg_ratio1<1.1) & (rg_ratio1>0.93)
 
     disp_mask = cv.remap(new_mask, mapLx, mapLy,
                             interpolation=cv.INTER_NEAREST,
@@ -181,7 +191,7 @@ while(1):
     im3d1[im3d1 == -np.inf] = None
     im3d1[im3d1 > 9000] = None
 
-    tilt = 25 * np.pi/180
+    tilt = 23 * np.pi/180
     height_camera = 46
 
     depths = np.sqrt(im3d[:,:,0]**2 + im3d[:,:,1]**2 + im3d[:,:,2]**2)
@@ -190,6 +200,7 @@ while(1):
     angle  = np.arccos(im3d[:,:,2]/depths)
     z = depths * np.sin(angle + tilt) + height_camera
     z = cv.bitwise_and(z, z, mask=disp_mask)
+    
 
     depths1 = np.sqrt(im3d1[:,:,0]**2 + im3d1[:,:,1]**2 + im3d1[:,:,2]**2)
     depths1 = cv.bitwise_and(depths1, depths1, mask=disp_mask1)
@@ -226,7 +237,6 @@ while(1):
             else:
                 delta_height = z[x, y] - z1[p,q]
                 delta_heights.append(delta_height)
-
     delta_heights=np.reshape(delta_heights,(480,640))
     
         
@@ -248,15 +258,39 @@ while(1):
     v = np.tan(ang_vertical/2) * depths
 
     speed = np.sqrt(u**2 + v**2 + delta_depths**2) *1/5 #m/s
-    #speed1D = np.sqrt(u**2 + v**2) * 1/5 #m/s
+    speed1D = np.sqrt(u**2 + v**2) * 1/5 #m/s
 
     updraft  = delta_heights* 1/5
+    speed[speed1D ==0] = 0
 
     cloud_height.append(z)
     cloud_speed.append(speed)
     cloud_updraft.append(updraft)
 
     
+    fig3, ((ax3,ax4), (ax5, ax6)) = plt.subplots(2,2, sharex =  True, sharey =True)
+    ax3.imshow(rimgL)
+    spd = ax3.imshow(speed)
+    dividerh = make_axes_locatable(ax3)
+    cax3 = dividerh.append_axes('right', size='5%', pad=0.05)
+    fig3.colorbar(spd, cax=cax3, orientation='vertical')
+    ax3.set_title(date) 
+    ax3.set_xlabel('speed')
+
+    #fig4, ax4 = plt.subplots(1,1)
+    ax4.imshow(rimgL)
+    spd = ax4.imshow(updraft, cmap = 'coolwarm')
+    dividerh = make_axes_locatable(ax4)
+    cax4 = dividerh.append_axes('right', size='5%', pad=0.05)
+    fig3.colorbar(spd, cax=cax4, orientation='vertical') 
+    ax4.set_xlabel('updraft')
+    img = cv.bitwise_and(rimgL, rimgL, mask=disp_mask)
+    ax5.imshow(img)
+    ax6.imshow(bgr)
+    fig3.tight_layout(pad=1.0)
+    plt.show()
+
+   
     
         #plot
     #fig, ax = plt.subplots(1,1)
@@ -285,37 +319,37 @@ while(1):
     ###plt.show()
   
     #heat map  of change in height vs height
-    updraft_flat = updraft.flatten()
-    xh = z.flatten()
-    idxh = (~np.isnan(xh+updraft_flat))
+    #updraft_flat = updraft.flatten()
+    #xh = z.flatten()
+    #idxh = (~np.isnan(xh+updraft_flat))
     
-    fig7, (ax6, ax7) = plt.subplots(1,2)
-    Hh, xedgesh, yedgesh = np.histogram2d(xh[idxh], updraft_flat[idxh], bins=(100, 100))
-    extenth = [xedgesh[0], xedgesh[-1], yedgesh[0], yedgesh[-1]]
-    upd = ax7.imshow(Hh.T, extent=extenth, interpolation='nearest', origin='lower', cmap='coolwarm', aspect='auto')
-    dividerh = make_axes_locatable(ax7)
-    cax7 = dividerh.append_axes('right', size='5%', pad=0.05)
-    fig7.colorbar(upd, cax=cax7, orientation='vertical')
+    #fig7, (ax6, ax7) = plt.subplots(1,2)
+    #Hh, xedgesh, yedgesh = np.histogram2d(xh[idxh], updraft_flat[idxh], bins=(100, 100))
+    #extenth = [xedgesh[0], xedgesh[-1], yedgesh[0], yedgesh[-1]]
+    #upd = ax7.imshow(Hh.T, extent=extenth, interpolation='nearest', origin='lower', cmap='coolwarm', aspect='auto')
+    #dividerh = make_axes_locatable(ax7)
+    #cax7 = dividerh.append_axes('right', size='5%', pad=0.05)
+    #fig7.colorbar(upd, cax=cax7, orientation='vertical')
 
-    ax7.set_xlabel('Height (m)')
-    ax7.set_ylabel('Updraft (m/s)')
+    #ax7.set_xlabel('Height (m)')
+    #ax7.set_ylabel('Updraft (m/s)')
     #ax7.set_title('histogram2d')
 
     #heat map  of speed vs height
-    x = z.flatten()
-    y = speed.flatten()
-    print(x.shape)
-    idx = (~np.isnan(x+y))
+    #x = z.flatten()
+    #y = speed.flatten()
+    #print(x.shape)
+    #idx = (~np.isnan(x+y))
     #fig6, ax6 = plt.subplots(1,1)
-    H, xedges, yedges = np.histogram2d(x[idx], y[idx], bins=(100, 100))# range=[[1000, 9000], [0,200]] )
-    extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
-    spd = ax6.imshow(H.T, extent=extent, interpolation='nearest', origin='lower', cmap='coolwarm', aspect='auto')
-    divider = make_axes_locatable(ax6)
-    cax6 = divider.append_axes('right', size='5%', pad=0.05)
-    fig7.colorbar(spd, cax=cax6, orientation='vertical')
+    #H, xedges, yedges = np.histogram2d(x[idx], y[idx], bins=(100, 100))# range=[[1000, 9000], [0,200]] )
+    #extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
+    #spd = ax6.imshow(H.T, extent=extent, interpolation='nearest', origin='lower', cmap='coolwarm', aspect='auto')
+    #divider = make_axes_locatable(ax6)
+    #cax6 = divider.append_axes('right', size='5%', pad=0.05)
+    #fig7.colorbar(spd, cax=cax6, orientation='vertical')
 
-    ax6.set_xlabel('Height (m)')
-    ax6.set_ylabel('Speed (m/s)')
+    #ax6.set_xlabel('Height (m)')
+    #ax6.set_ylabel('Speed (m/s)')
     #ax6.set_title('histogram2d')
     #ax6.grid()
     #plt.show()
@@ -323,16 +357,17 @@ while(1):
     #cv.imshow('frame2', bgr)
     #cv.imshow('frame1',frame2)
     #cv.imshow('depths',delta_depths)
-    mag[mag == 0]  = None
+    #mag[mag == 0]  = None
 
     
     #plot the optical flow on the image
     #fig2, ax2 = plt.subplots(1,1)
-    #ax2.imshow(disparity_map2) 
+    #ax2.imshow(img) 
     #x,y = np.meshgrid(np.linspace(0,640,640),np.linspace(0,480,480))
     #ax2.quiver(x, y, u, v, color  = 'red')
     #plt.show()
-        
+    
+    
 
     k = cv.waitKey(30) & 0xff
     if k == 27:
@@ -349,9 +384,9 @@ cloud_height  = np.reshape(cloud_height, (480*640*716, 1))
 cloud_speed  = np.reshape(cloud_speed, (480*640*716, 1))
 cloud_updraft  = np.reshape(cloud_updraft, (480*640*716, 1))
 
-np.savetxt('cloud_height.csv', cloud_height , delimiter=',', fmt='%s')
-np.savetxt('cloud_speed.csv', cloud_speed , delimiter=',', fmt='%s')
-np.savetxt('cloud_updraft.csv', cloud_updraft , delimiter=',', fmt='%s')
+np.savetxt('data/cloud_height_'+date+'.csv', cloud_height , delimiter=',', fmt='%s')
+np.savetxt('data/cloud_speed_'+date+'.csv', cloud_speed , delimiter=',', fmt='%s')
+np.savetxt('data/cloud_updraft_'+date+'.csv', cloud_updraft , delimiter=',', fmt='%s')
 
 
 print('done')
