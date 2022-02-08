@@ -1,13 +1,10 @@
 import numpy as np
 import cv2 as cv
-from matplotlib import pyplot as plt
-from mpl_toolkits.axes_grid1 import make_axes_locatable
+import matplotlib.pyplot as plt
+import pickle
 
-from mask2 import img1_masked, img3_masked
-from bearings import rotation_matrix, translation_vector, baseline_dist
 from rectifiedUnrectifiedMapping import C1_H, lidarToRectifiedSingle
-from lidarCameraMatching import lidar_coords, camera_coords, lidarH
-from plotLidarOnImage import success_coords, decimalToNormal
+from lidarCameraMatching import lidarH
 from lidarPlots import LidarData, findCloud
 from mask2 import mask_C1, mask_C3
 #from rectifiedUnrectifiedMapping import C1_H
@@ -38,19 +35,21 @@ def gaussian_contrast(img):
     #final = cv.cvtColor(limg, cv.COLOR_BGR2GRAY)
     return limg
 
-fundamental_matrix = np.loadtxt(r'matrices/fundamental_matrix.csv', delimiter = ',')
-essential_matrix = np.loadtxt(r'matrices/essential_matrix.csv', delimiter = ',')
-pose = np.loadtxt(r'matrices/pose[1].csv', delimiter = ',')
-T = np.loadtxt(r'matrices/T.csv', delimiter = ',')
-Rleft = np.loadtxt(r'matrices/Rleft.csv', delimiter = ',')
-Rright = np.loadtxt(r'matrices/Rright.csv', delimiter = ',')
-Pleft = np.loadtxt(r'matrices/Pleft.csv', delimiter = ',')
-Pright = np.loadtxt(r'matrices/Pright.csv', delimiter = ',')
-Q = np.loadtxt(r'matrices/Q.csv', delimiter = ',')
-Hleft = np.loadtxt(r'matrices/Hleft.csv', delimiter = ',')
-Hright = np.loadtxt(r'matrices/Hright.csv', delimiter = ',')
-roi_left = np.loadtxt(r'matrices/roi_left.csv', delimiter = ',')
-roi_right = np.loadtxt(r'matrices/roi_right.csv', delimiter = ',')
+# fundamental_matrix = np.loadtxt(r'matrices/fundamental_matrix.csv', delimiter = ',')
+# essential_matrix = np.loadtxt(r'matrices/essential_matrix.csv', delimiter = ',')
+# pose = np.loadtxt(r'matrices/pose[1].csv', delimiter = ',')
+# T = np.loadtxt(r'matrices/T.csv', delimiter = ',')
+# Rleft = np.loadtxt(r'matrices/Rleft.csv', delimiter = ',')
+# Rright = np.loadtxt(r'matrices/Rright.csv', delimiter = ',')
+# Pleft = np.loadtxt(r'matrices/Pleft.csv', delimiter = ',')
+# Pright = np.loadtxt(r'matrices/Pright.csv', delimiter = ',')
+# Q = np.loadtxt(r'matrices/Q.csv', delimiter = ',')
+# Hleft = np.loadtxt(r'matrices/Hleft.csv', delimiter = ',')
+# Hright = np.loadtxt(r'matrices/Hright.csv', delimiter = ',')
+# roi_left = np.loadtxt(r'matrices/roi_left.csv', delimiter = ',')
+# roi_right = np.loadtxt(r'matrices/roi_right.csv', delimiter = ',')
+
+stereo_cal = pickle.load( open( 'stereo_cal_mat.pkl', "rb" ) )
 
 #images with masked buildings
 # imgR = img1_masked
@@ -169,8 +168,8 @@ while(vidcapR.isOpened() and vidcapL.isOpened()):
         imgL_undistorted = cv.undistort(imgL, CamM_left, Distort_left, None, new_camera_matrixleft)
 
         #creates new map for each camera with the rotation and pose (R and P) values
-        mapLx, mapLy = cv.initUndistortRectifyMap(new_camera_matrixleft, Distort_left, Rleft, Pleft, (w,h), cv.CV_32FC1)
-        mapRx, mapRy = cv.initUndistortRectifyMap(new_camera_matrixright, Distort_right, Rright, Pright, (w,h), cv.CV_32FC1)
+        mapLx, mapLy = cv.initUndistortRectifyMap(new_camera_matrixleft, Distort_left, stereo_cal.get('Rleft'), stereo_cal.get('Pleft'), (w,h), cv.CV_32FC1)
+        mapRx, mapRy = cv.initUndistortRectifyMap(new_camera_matrixright, Distort_right, stereo_cal.get('Rright'), stereo_cal.get('Pright'), (w,h), cv.CV_32FC1)
 
         # remaps each image to the new map
         rimgR = cv.remap(imgR, mapRx, mapRy,
@@ -183,14 +182,14 @@ while(vidcapR.isOpened() and vidcapL.isOpened()):
                               borderValue=(0, 0, 0, 0))
 
         # compute disparity map for the rectified images
-        disparity_map2 = stereo.compute(rimgL, rimgR).astype(np.float32)
+        disparity_map = stereo.compute(rimgL, rimgR).astype(np.float32)
 
         mask_new = mask_C1 & mask_C3 #new to rotate and translate the mask
-        disp_masked = cv.bitwise_and(disparity_map2, disparity_map2, mask=mask_new)
+        disp_masked = cv.bitwise_and(disparity_map, disparity_map, mask=mask_new)
 
-        im3d = cv.reprojectImageTo3D(disp_masked/32, Q, handleMissingValues = True)
+        # im3d = cv.reprojectImageTo3D(disp_masked/16, stereo_cal.get('Q'), handleMissingValues = True)
 
-        im3d = cv.reprojectImageTo3D(disparity_map2/32, Q, handleMissingValues = True)
+        im3d = cv.reprojectImageTo3D(disparity_map/16, stereo_cal.get('Q'), handleMissingValues = True)
         im3d[im3d == np.inf] = 0
         im3d[im3d > 9_000] = 0
         im3d[im3d == -np.inf] = 0
