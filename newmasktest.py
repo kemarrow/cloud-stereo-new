@@ -34,10 +34,10 @@ while True:
     #cv.putText(frame, str(capture.get(cv.CAP_PROP_POS_FRAMES)), (15, 15),
                #cv.FONT_HERSHEY_SIMPLEX, 0.5 , (0,0,0))
     
-    fig, (ax, ax1)  = plt.subplots(1,2)
-    ax.imshow(frame)
-    ax1.imshow( fgMask)
-    plt.show()
+    
+    cv.imshow('Frame', frame)
+    cv.imshow('mask',fgMask)
+   
 
     
     keyboard = cv.waitKey(30)
