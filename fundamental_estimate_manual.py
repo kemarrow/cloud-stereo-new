@@ -181,9 +181,19 @@ CamM_left = np.array([[5.520688775958645920e+02,0.000000000000000000e+00,3.22586
           [0.000000000000000000e+00,5.502640890663026312e+02,2.362389385357402034e+02],
           [0.000000000000000000e+00,0.000000000000000000e+00,1.000000000000000000e+00]])
 
+CamM_left_ronnie = np.array([[5.084752337001038995e+02,0.000000000000000000e+00, 3.225185456035997049e+02],
+                             [0.000000000000000000e+00,5.084752337001038995e+02,2.505901000840876520e+02],
+                             [0.000000000000000000e+00,0.000000000000000000e+00,1.000000000000000000e+00]])
+
 distort = np.array([2.808374038768443048e-01,-9.909134707088265159e-01,6.299531255281858727e-04,-1.301770463801651002e-03,1.093982545460403522e+00])
 
-translation_vector = np.array([ 59.29974976947545, -16.,   0.])
+translation_vector = np.array([-59.29974976947545, -16.,   0.])
+
+#Ronnie's instrinsic camera parameters (in px)
+f = 5.084752337001038995e+02
+c_x = 3.225185456035997049e+02
+c_y = 2.505901000840876520e+02
+
 
 w,h = 640,480
     
@@ -225,17 +235,22 @@ starsR = np.array([(638.1610878661088, 278.5460251046025),
  (214.39539748953973, 247.081589958159),
  (329.5418410041841, 226.99790794979083)])
 
-#rotation,___ = cv2.findHomography(starsR, starsL)
-starsL_3d = np.append(starsL, np.ones((len(starsL), 1)), -1)
-starsR_3d = np.append(starsR, np.ones((len(starsR), 1)), -1)
-rotation, ___ = R.align_vectors(starsR_3d, starsL_3d)
-rotation = rotation.as_matrix()
 
 R_ronnie = np.array([[ 0.99988914,0.01471834, 0.00224488], 
- [-0.01477408,  0.99951947, 0.02724975],
- [-0.00184273, -0.02727989, 0.99962616]])
+                     [-0.01477408,  0.99951947, 0.02724975],
+                     [-0.00184273, -0.02727989, 0.99962616]])
 
 T_ronnie = np.array([-52.1222311, -14.0858871, -0.92779816])
+
+Rleft_ronnie = np.array([[ 0.9904186, -0.04264348, -0.13134906], 
+                         [ 0.13727167, 0.40789312 , 0.90265155],
+                         [ 0.01508419, -0.9120333, 0.40983865]])
+
+Rright_ronnie = np.array([[ 0.9893863, -0.06083473,-0.1319617 ],
+                          [ 0.14528628 , 0.4302662, 0.89093363],
+                          [ 0.00257894,-0.9006498, 0.43453792]])
+
+
 
 newcameramtx, roi = cv2.getOptimalNewCameraMatrix(
     CamM_left, distort, (w, h), 1, (w, h))
@@ -255,8 +270,8 @@ Rleft, Rright, Pleft, Pright, Q, roi_left, roi_right = cv2.stereoRectify(
     newcameramtx, distort,
     newcameramtx, distort,
     imageSize=(w,h),
-    R=R_ronnie,
-    T=T_ronnie,
+    R=pose[1],
+    T=pose[2]*inter_cam_dist,
     flags= cv2.CALIB_ZERO_DISPARITY)
 
 success, Hleft, Hright = cv2.stereoRectifyUncalibrated(
@@ -264,15 +279,22 @@ success, Hleft, Hright = cv2.stereoRectifyUncalibrated(
     fundamental_matrix, imgSize=(w, h)
     )
 
+Pleft_ronnie = np.array([[5.084752337001038995e+02, 0.0, 3.225185456035997049e+02, 0.0],
+                        [0.0, 5.111127135158413921e+02,  2.505901000840876520e+02, 0.0],
+                        [0.0,           0.0,             1.0,                      0.0]])
+
+Pright_ronnie = np.array([[5.084752337001038995e+02, 0.0, 3.225185456035997049e+02, -2.80317085e+04],
+                        [0.0, 5.111127135158413921e+02,  2.505901000840876520e+02, 0.0],
+                        [0.0,           0.0,             1.0,                      0.0]])
 
 stereo_cal = {'F': fundamental_matrix,
               'E': essential_matrix,
               'R': R_ronnie,
               'T': T_ronnie,
-              'Rleft': Rleft,
-              'Rright': Rright,
-              'Pleft': Pleft,
-              'Pright': Pright,
+              'Rleft': Rleft_ronnie,
+              'Rright': Rright_ronnie,
+              'Pleft': Pleft_ronnie,
+              'Pright': Pright_ronnie,
               'Q': Q,
               'Hleft': Hleft,
               'Hright': Hright,
@@ -282,49 +304,3 @@ stereo_cal = {'F': fundamental_matrix,
 with open('stereo_cal_mat.pkl', 'wb') as f:
     pickle.dump(stereo_cal, f)
     
-    
-    
-#%%
-
-folder = "C:/Users/kathe/OneDrive - Imperial College London/MSci Project/longExposures/"
-imgRLarge = cv2.imread(folder+'tl_2021-10-30_230002_CAL1.jpg')
-imgLLarge = cv2.imread(folder+'tl4_2021-10-30_230002_CAL1.jpg')
-imgR = cv2.resize(imgRLarge,(640,480),fx=0,fy=0, interpolation = cv2.INTER_CUBIC)
-imgL = cv2.resize(imgLLarge,(640,480),fx=0,fy=0, interpolation = cv2.INTER_CUBIC)
-
-fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2,2, sharex=True, sharey=True)
-ax1.imshow(imgL)
-ax2.imshow(imgR)
-ax1.plot(starsL[:,0], starsL[:,1], 'r.', label='C3 star positions')
-ax2.plot(starsR[:,0], starsR[:,1], 'g.', label='C1 star positions')
-
-
-starsL_rect = cv2.undistortPoints(starsL, newcameramtx, distort, 
-                                  Rleft, np.delete(Pleft, 3, axis=1))
-starsR_rect = cv2.undistortPoints(starsR, newcameramtx, distort, 
-                                  Rright, np.delete(Pright, 3, axis=1))
-
-starsL_rect = starsL_rect.reshape((18,2))
-starsR_rect = starsR_rect.reshape((18,2))
-
-ax3.plot(starsL[:,0], starsL[:,1], 'r.', label='C3 star positions')
-ax3.plot(starsR[:,0], starsR[:,1], 'g.', label='C1 star positions')
-ax3.legend()
-
-
-ax4.plot(starsL[:,0], starsL[:,1], 'r.', label='C3 star positions')
-ax4.plot(starsR[:,0], starsR[:,1], 'g.', label='C1 star positions')
-ax4.plot(starsL_rect[:,0], starsL_rect[:,1], 'rx', label='C3 rectified star positions')
-ax4.plot(starsR_rect[:,0], starsR_rect[:,1], 'gx', label='C1 rectified star positions')
-ax4.legend()
-
-
-#%%
-
-from haversine import haversine, Unit
-
-C3 = (51.4993318750954, -0.17901837289811393)
-C1 = (51.49880908055068, -0.1788492157810761)
-
-dist = haversine(C3, C1, unit=Unit.METERS)
-print(dist)
