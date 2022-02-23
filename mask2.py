@@ -225,6 +225,7 @@ def gen_mask(points, imshape, timemask=None):
     return mask.transpose()[:, :, None].astype('uint8')
 
 mask_C1 = gen_mask(img1_mask_lowres, (640, 480), timemask=mask_points_time1/2)
+
 mask_C3 = gen_mask(img3_mask, (640, 480), timemask=mask_points_time3)
 
 #img1 = cv.imread(r'Frames/lowres_output_C1_20211004_11/C1_041021_frame_0.jpg')  # camera 1 image

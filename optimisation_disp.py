@@ -221,11 +221,7 @@ import optuna
 
 
 study = optuna.create_study()
-<<<<<<< Updated upstream
 p = study.optimize(function, n_trials=100)
-=======
-p= study.optimize(function, n_trials=100)
->>>>>>> Stashed changes
 print('p', p)
 
 min_disp = np.linspace(0, 4, 1)
