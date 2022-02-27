@@ -122,13 +122,14 @@ count  = 0
 while(1):
     ret, frame2 = cap.read()
     success, imgR = vidcapR.read()
+    imgRR =imgR
+    imgLL = imgL
     success2, imgL = vidcapL.read()
     #ret2, img2 = cap2.read()
     #img2 = cv.cvtColor(img2, cv.COLOR_BGR2GRAY)
     if not ret:
         print('No frames grabbed!')
         break
-
 
     io_adapter = IOAdapter(model, prvsL1.shape[:2])
 
@@ -149,15 +150,12 @@ while(1):
    
     #flows will be a 5D tensor BNCHW.
     # This example should print a shape (1, 1, 2, H, W).
-    #print(flows.shape)
-    #print(flows[3])
     # Create an RGB representation of the flow to show it on the screen
     flow_rgb = flow_utils.flow_to_rgb(flows)
     print(np.shape(flow_rgb))
     # Make it a numpy array with HWC shape
     flow_rgb = flow_rgb[0, 0].permute(1, 2, 0)
     flow_rgb_npy = flow_rgb.detach().cpu().numpy()
-
 
     flownet  = cv.cvtColor(flow_rgb_npy, cv.COLOR_BGR2GRAY)
 
@@ -175,8 +173,6 @@ while(1):
 
     bgr = cv.cvtColor(flow_rgb_npy, cv.COLOR_RGB2BGR)
     #flow_bgr_npym = cv.bitwise_and(flow_bgr_npy, flow_bgr_npy, mask=new_mask)
-
-
 
 
     #Farneback algorithm 
@@ -313,13 +309,13 @@ while(1):
     for  r, valuex in enumerate(depths):
         for  i, value in enumerate(valuex):
             #print(flow[r,i,0])
-            x = r+round(flow[r,i,0])
-            y = i+round(flow[r,i,1])
-            if x<0 or y<0 or x> 479 or y> 639:
+            y = r+round(flow[r,i,0])
+            x = i+round(flow[r,i,1])
+            if x<0 or y<0 or x> 639 or y>  479:
                 delta_depth = 50000#depths[r,i] - depths1[r,i]
                 delta_depths.append(delta_depth)
             else:
-                delta_depth = depths[x, y] - depths1[r,i]
+                delta_depth = depths[y, x] - depths1[r,i]
                 delta_depths.append(delta_depth)
     delta_depths=np.reshape(delta_depths,(480,640))
 
@@ -328,17 +324,59 @@ while(1):
     for  p, valuehx in enumerate(z):
         for q, valueh in enumerate(valuehx):
             #print(flow[r,i,0])
-            x = p+round(flow[p,q,0])
-            y = q+round(flow[p,q,1])
-            if x<0 or y<0 or x> 479 or y> 639:
+            y = p+round(flow[p,q,0])
+            x = q+round(flow[p,q,1])
+            if x<0 or y<0 or x> 639 or y> 479:
                 delta_height = 50000#depths[r,i] - depths1[r,i]
                 delta_heights.append(delta_height)
             else:
-                delta_height = z[x, y] - z1[p,q]
+                delta_height = z[y, x] - z1[p,q]
                 delta_heights.append(delta_height)
     delta_heights=np.reshape(delta_heights,(480,640))
     
-        
+    
+    fig, ((ax1,ax2), (ax3,ax4))  = plt.subplots(2,2, sharex = True, sharey = True)
+    imgRR  = cv.cvtColor(imgRR, cv.COLOR_RGB2BGR)
+    imgLL = cv.cvtColor(imgLL, cv.COLOR_RGB2BGR)
+    rimgRR = cv.cvtColor(rimgR, cv.COLOR_RGB2BGR)
+    rimgLL = cv.cvtColor(rimgL, cv.COLOR_RGB2BGR)
+
+    ax1.imshow(imgRR)
+    ax1.set_xlabel('Camera 1 (right)')
+    ax2.imshow(imgLL)
+    ax2.set_xlabel('Camera 2 (left)')
+
+    ax3.imshow(rimgRR)
+    ax3.set_xlabel('Camera 1 rectified')
+    ax4.imshow(rimgLL)
+    ax4.set_xlabel('Camera 2 rectified')
+
+    plt.show()
+
+    fig, (ax1,ax2,ax3)  = plt.subplots(1,3, sharex = True, sharey = True)
+    
+    img = cv.bitwise_and(rimgL, rimgL, mask=disp_mask)
+    ax1.imshow(img)
+    ax1.set_xlabel('Mask')
+
+
+    disparity_map22  = cv.bitwise_and(disparity_map2, disparity_map2, mask =  buildmask)
+    #disparity_map22[disparity_map22== disp_mask]= None
+    ax2.set_xlabel('Disparity Map')
+    disp = ax2.imshow(disparity_map22,'coolwarm')
+    divider = make_axes_locatable(ax2)
+    cax = divider.append_axes('right', size='5%', pad=0.05)
+    fig.colorbar(disp, cax=cax, orientation='vertical')
+    depths[depths==0] = None
+    depth = ax3.imshow(depths, 'coolwarm')
+    ax3.set_xlabel('Depth map')
+    divider2 = make_axes_locatable(ax3)
+    cax2 = divider2.append_axes('right', size='5%', pad=0.05)
+    fig.colorbar(depth, cax=cax2, orientation='vertical')
+    
+    plt.show()
+
+
         #set non physical changes to none
     #delta_heights[delta_heights==0] = None
     #delta_depths[delta_depths==0] = None
@@ -375,7 +413,7 @@ while(1):
     fig3, ((axx, ax3,ax4), (ax5, ax6, ax7)) = plt.subplots(2,3, sharex =  True, sharey =True)
     masked_left = cv.bitwise_and(rimgL, rimgL, mask = buildmask)
     masked_left = cv.cvtColor(masked_left, cv.COLOR_RGB2BGR)
-    imgL  = cv.cvtColor(imgL, cv.COLOR_RGB2BGR)
+    #imgL  = cv.cvtColor(imgL, cv.COLOR_RGB2BGR)
     axx.imshow(imgL)
     #masked_left = cvt.colo5
     ax3.imshow(masked_left)
@@ -423,7 +461,7 @@ while(1):
     divider = make_axes_locatable(ax)
     cax = divider.append_axes('right', size='5%', pad=0.05)
     fig.colorbar(disp, cax=cax, orientation='vertical')
-    plt.show()
+    #plt.show()
 
     #fig5, ax5 = plt.subplots(1,1)
     #fig5 = plt.figure()
@@ -480,7 +518,7 @@ while(1):
     ax6.set_ylabel('Speed (m/s)')
     #ax6.set_title('histogram2d')
     #ax6.grid()
-    plt.show()
+    #plt.show()
 
     #cv.imshow('frame2', bgr)
     #cv.imshow('frame1',frame2)
