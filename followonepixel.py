@@ -9,20 +9,7 @@ import pickle
 import ptlflow
 from ptlflow.utils import flow_utils
 from ptlflow.utils.io_adapter import IOAdapter
-
-#fundamental_matrix = np.loadtxt(r'matrices/fundamental_matrix.csv', delimiter = ',')
-##essential_matrix = np.loadtxt(r'matrices/essential_matrix.csv', delimiter = ',')
-#pose = np.loadtxt(r'matrices/pose[1].csv', delimiter = ',')
-#T = np.loadtxt(r'matrices/T.csv', delimiter = ',')
-# Rleft = np.loadtxt(r'matrices/Rleft.csv', delimiter = ',')
-# Rright = np.loadtxt(r'matrices/Rright.csv', delimiter = ',')
-# Pleft = np.loadtxt(r'matrices/Pleft.csv', delimiter = ',')
-# Pright = np.loadtxt(r'matrices/Pright.csv', delimiter = ',')
-# Q = np.loadtxt(r'matrices/Q.csv', delimiter = ',')
-# Hleft = np.loadtxt(r'matrices/Hleft.csv', delimiter = ',')
-# Hright = np.loadtxt(r'matrices/Hright.csv', delimiter = ',')
-# roi_left = np.loadtxt(r'matrices/roi_left.csv', delimiter = ',')
-# roi_right = np.loadtxt(r'matrices/roi_right.csv', delimiter = ',')
+import math
 
 stereo_cal = pickle.load( open( 'stereo_cal_mat.pkl', "rb" ) )
 
@@ -109,269 +96,185 @@ vertical_fov = 48.8 #degrees
 theta_horizontal = horizontal_fov/w #degree/pixel
 theta_vertical = vertical_fov/h #degree/pixel
 
-x = 409#204#260
-y = 45#268#133
+#x = 409#204#260
+#y = 45#268#133
 
-x1='409'
+#x1='409'
 
-y1='45'
-count  = 0
+#y1='45'
 
-height1pix =[]
-while(1):
-    ret, frame2 = cap.read()
-    success, imgR = vidcapR.read()
-    success2, imgL = vidcapL.read()
+biglist = []
+bigcounts =  []
 
-    if not ret:
-        print('No frames grabbed!')
-        break
+for x in range(240, 245):
+    print('changing x')
+    p = x
+    for y in range(120, 130):
+        q=y
+        count=0
+        heightpix =[]
+        counts=[]
+        while(1):
+            ret, frame2 = cap.read()
+            success, imgR = vidcapR.read()
+            success2, imgL = vidcapL.read()
 
-    io_adapter = IOAdapter(model, prvsL1.shape[:2])
-    # inputs is a dict {'images': torch.Tensor}
-    # The tensor is 5D with a shape BNCHW. In this case, it will have the shape: (1, 2, 3, H, W)
-    inputs = io_adapter.prepare_inputs([prvsL1, imgL])
-    # Forward the inputs through the model
-    predictions = model(inputs)
-    # Remove extra padding that may have been added to the inputs
-    predictions = io_adapter.unpad_and_unscale(predictions)
-    # The output is a dict with possibly several keys,
-    # but it should always store the optical flow prediction in a key called 'flows'.
-    flows = predictions['flows']
-    flow  =  flows.detach().numpy()
-   
-    #flows will be a 5D tensor BNCHW.
-    # This example should print a shape (1, 1, 2, H, W).
-    # Create an RGB representation of the flow to show it on the screen
-    flow_rgb = flow_utils.flow_to_rgb(flows)
-    print(np.shape(flow_rgb))
-    # Make it a numpy array with HWC shape
-    flow_rgb = flow_rgb[0, 0].permute(1, 2, 0)
-    flow_rgb_npy = flow_rgb.detach().cpu().numpy()
+            if not ret:
+                print('No frames grabbed!')
+                break
+            
+            imgR = cv.undistort(imgR, CamM_right, Distort_right, None, new_camera_matrixright)
+            imgL = cv.undistort(imgL, CamM_left, Distort_left, None, new_camera_matrixleft)
 
-    flownet  = cv.cvtColor(flow_rgb_npy, cv.COLOR_BGR2GRAY)
+            prvsR1 = cv.undistort(prvsR1, CamM_right, Distort_right, None, new_camera_matrixright)
+            prvsL1 = cv.undistort(prvsL1, CamM_right, Distort_right, None, new_camera_matrixright)
 
-    flow= flow.squeeze()
-    flow  = np.swapaxes(flow, 0, 1)
-    flow  = np.swapaxes(flow, 1, 2)
+                # remaps each image to the new map
+            rimgR = cv.remap(imgR, mapRx, mapRy,
+                                    interpolation=cv.INTER_NEAREST,
+                                    borderMode=cv.BORDER_CONSTANT,
+                                    borderValue=(0, 0, 0, 0))
+            rimgL = cv.remap(imgL, mapLx, mapLy,
+                                    interpolation=cv.INTER_NEAREST,
+                                    borderMode=cv.BORDER_CONSTANT,
+                                    borderValue=(0, 0, 0, 0))
+                #previous image mapping
+            rimgR1 = cv.remap(prvsR1 , mapRx, mapRy,
+                                    interpolation=cv.INTER_NEAREST,
+                                    borderMode=cv.BORDER_CONSTANT,
+                                    borderValue=(0, 0, 0, 0))
+            rimgL1 = cv.remap(prvsL1 , mapLx, mapLy,
+                                    interpolation=cv.INTER_NEAREST,
+                                    borderMode=cv.BORDER_CONSTANT,
+                                    borderValue=(0, 0, 0, 0))
 
-    # OpenCV uses BGR format
-    bgr = cv.cvtColor(flow_rgb_npy, cv.COLOR_RGB2BGR)
-    #flow_bgr_npym = cv.bitwise_and(flow_bgr_npy, flow_bgr_npy, mask=new_mask)
+            io_adapter = IOAdapter(model, rimgL1.shape[:2])
+            # inputs is a dict {'images': torch.Tensor}
+            # The tensor is 5D with a shape BNCHW. In this case, it will have the shape: (1, 2, 3, H, W)
+            inputs = io_adapter.prepare_inputs([rimgL1, rimgL])
+            # Forward the inputs through the model
+            predictions = model(inputs)
+            # Remove extra padding that may have been added to the inputs
+            predictions = io_adapter.unpad_and_unscale(predictions)
+            # The output is a dict with possibly several keys, but it should always store the optical flow prediction in a key called 'flows'.
+            flows = predictions['flows']
+            flow  =  flows.detach().numpy()
 
-
-    #Farneback algorithm 
-    #next = cv.cvtColor(frame2, cv.COLOR_BGR2GRAY)
-    #flow = cv.calcOpticalFlowFarneback(prvs, next, None, 0.5, 3, 15, 3, 5, 1.2, 0)
-    #print(flow)
-    #mag, ang = cv.cartToPolar(flow[..., 0], flow[..., 1])
-    #hsv[..., 0] = ang*180/np.pi/2
-    #hsv[..., 2] = cv.normalize(mag, None, 0, 255, cv.NORM_MINMAX)
-    #bgr = cv.cvtColor(hsv, cv.COLOR_HSV2BGR)
-    
-    
-    #bgr = cv.bitwise_and(bgr, bgr, mask=maskcomb)
-    
-    #bgr = backSub.apply(z)
-    bgr = cv.remap(bgr, mapLx, mapLy,
-                            interpolation=cv.INTER_NEAREST,
-                            borderMode=cv.BORDER_CONSTANT,
-                            borderValue=(0, 0, 0, 0))
-    
-    print(count)
-    count +=1
-
-        #Undistort images
-    imgR = cv.undistort(imgR, CamM_right, Distort_right, None, new_camera_matrixright)
-    imgL = cv.undistort(imgL, CamM_left, Distort_left, None, new_camera_matrixleft)
-
-        # remaps each image to the new map
-    rimgR = cv.remap(imgR, mapRx, mapRy,
-                            interpolation=cv.INTER_NEAREST,
-                            borderMode=cv.BORDER_CONSTANT,
-                            borderValue=(0, 0, 0, 0))
-    rimgL = cv.remap(imgL, mapLx, mapLy,
-                            interpolation=cv.INTER_NEAREST,
-                            borderMode=cv.BORDER_CONSTANT,
-                            borderValue=(0, 0, 0, 0))
-        #previous image mapping
-    rimgR1 = cv.remap(prvsR1 , mapRx, mapRy,
-                            interpolation=cv.INTER_NEAREST,
-                            borderMode=cv.BORDER_CONSTANT,
-                            borderValue=(0, 0, 0, 0))
-    rimgL1 = cv.remap(prvsL1 , mapLx, mapLy,
-                            interpolation=cv.INTER_NEAREST,
-                            borderMode=cv.BORDER_CONSTANT,
-                            borderValue=(0, 0, 0, 0))
-                
-
-        #compute disparity map for the rectified images
-    disparity_map2 = stereo.compute(rimgL, rimgR).astype(np.float32)
-    disparity_map1 = stereo.compute(rimgL1, rimgR1).astype(np.float32)
-
-         #combine mask1 and mask3 and rectify 
-    maskcomb =  mask_C1[:,:,0] & mask_C3[:,:,0]
-    rg_ratio = imgL[:, :, 1]/imgL[:, :, 2]
-    new_mask =  maskcomb & (rg_ratio<1.1) & (rg_ratio>0.93)#maskL & thresh1
-    
-    rg_ratio1 = prvsL1[:, :, 1]/prvsL1[:, :, 2]
-    new_mask1 =  maskcomb & (rg_ratio1<1.1) & (rg_ratio1>0.93) #maskL1 &thresh1
-    
-
-    buildmask = cv.remap(maskcomb, mapLx, mapLy,
-                            interpolation=cv.INTER_NEAREST,
-                            borderMode=cv.BORDER_CONSTANT,
-                            borderValue=(0, 0, 0, 0))
-
-    disp_mask = cv.remap(new_mask, mapLx, mapLy,
-                            interpolation=cv.INTER_NEAREST,
-                            borderMode=cv.BORDER_CONSTANT,
-                            borderValue=(0, 0, 0, 0))
-    
-    # disp_mask1 = cv.remap(new_mask1, mapLx, mapLy,
-                            # interpolation=cv.INTER_NEAREST,
-                            # borderMode=cv.BORDER_CONSTANT,
-                            # borderValue=(0, 0, 0, 0))
-
-        #convert to depth
-    im3d = cv.reprojectImageTo3D(disparity_map2/16, Q, handleMissingValues = True)
-    # im3d1 = cv.reprojectImageTo3D(disparity_map1/16, Q, handleMissingValues = True)
-
-    #im3d = cv.bitwise_and(im3d, im3d, mask=disp_mask)
-    # im3d1 = cv.bitwise_and(im3d1, im3d1, mask=disp_mask1)
-        #set out of range depths to 0
-    im3d[im3d == np.inf] = None
-    im3d[im3d == -np.inf] = None
-    im3d[im3d > 9000] = None
-    im3d[im3d == 0]  = None
-
-    # im3d1[im3d1 == np.inf] = None
-    # im3d1[im3d1 == -np.inf] = None
-    # im3d1[im3d1 > 9000] = None
-
-    tilt = 23 * np.pi/180
-    height_camera = 46
-
-    depths = np.sqrt(im3d[:,:,0]**2 + im3d[:,:,1]**2 + im3d[:,:,2]**2)
-    #depths = cv.bitwise_and(depths, depths, mask=disp_mask)
-
-    depths[depths > 9000] = None
-    angle  = np.arccos(im3d[:,:,2]/depths)
-    z = depths * np.sin(angle + tilt) + height_camera
-    z = cv.bitwise_and(z, z, mask=disp_mask)
-    z[z==disp_mask]=None
-
-    # depths1 = np.sqrt(im3d1[:,:,0]**2 + im3d1[:,:,1]**2 + im3d1[:,:,2]**2)
-    # depths1 = cv.bitwise_and(depths1, depths1, mask=disp_mask1)
-    # depths1[depths1 > 9000] = None
-    # angle1  = np.arccos(im3d1[:,:,2]/depths1)
-    # z1 = depths1 * np.sin(angle1 + tilt) + height_camera
-    # z1 = cv.bitwise_and(z1, z1, mask=disp_mask1)
-    # z1[z1==disp_mask1]=None
-
-    #change in depth between 2 frames
-    x = x+round(flow[y, x,0])
-    y= y+round(flow[y, x,1])
-
-    print('flowx',flow[y, x,0],'flowy',flow[y,x,1])
-    print(x, y)
-    print('depths', depths[y,x])
-    print('height',z[y, x])
-
-    if x<112 or y<0 or x> 479 or y> 639 or z[y,x]==None:
-        break
-    
-    
-    height1pix.append(z[y, x])
-
-    
-    
-    
-    # delta_depths =[]
-    # for  r, valuex in enumerate(depths):
-    #     for  i, value in enumerate(valuex):
-    #         #print(flow[r,i,0])
-    #         x = r+round(flow[r,i,0])
-    #         y = i+round(flow[r,i,1])
-    #         if x<0 or y<0 or x> 479 or y> 639:
-    #             delta_depth = 50000#depths[r,i] - depths1[r,i]
-    #             delta_depths.append(delta_depth)
-    #         else:
-    #             delta_depth = depths[x, y] - depths1[r,i]
-    #             delta_depths.append(delta_depth)
-    # delta_depths=np.reshape(delta_depths,(480,640))
-
-    # #change in height between 2 frames
-    # delta_heights = []
-    # for  p, valuehx in enumerate(z):
-    #     for q, valueh in enumerate(valuehx):
-    #         #print(flow[r,i,0])
-    #         x = p+round(flow[p,q,0])
-    #         y = q+round(flow[p,q,1])
-    #         if x<0 or y<0 or x> 479 or y> 639:
-    #             delta_height = 50000#depths[r,i] - depths1[r,i]
-    #             delta_heights.append(delta_height)
-    #         else:
-    #             delta_height = z[x, y] - z1[p,q]
-    #             delta_heights.append(delta_height)
-
-    # delta_heights=np.reshape(delta_heights,(480,640))
-    
+            
         
-    #     #set non physical changes to none
-    # #delta_heights[delta_heights==0] = None
-    # #delta_depths[delta_depths==0] = None
-    # delta_heights[abs(delta_heights)>1000] = None
-    # delta_depths[abs(delta_depths)>1000] = None
+            #flows will be a 5D tensor BNCHW.
+            # This example should print a shape (1, 1, 2, H, W).
+            # Create an RGB representation of the flow to show it on the screen
+            flow_rgb = flow_utils.flow_to_rgb(flows)
+            #print(np.shape(flow_rgb))
+            # Make it a numpy array with HWC shape
+            flow_rgb = flow_rgb[0, 0].permute(1, 2, 0)
+            flow_rgb_npy = flow_rgb.detach().cpu().numpy()
 
-    # depths[depths == 0]  = None
-    # depths1[depths1 == 0]  = None
+            flownet  = cv.cvtColor(flow_rgb_npy, cv.COLOR_BGR2GRAY)
 
-    # #convert pixel direction to m
-    # ang_horizontal = flow[:,:,0]* theta_horizontal *np.pi/180 #rad
-    # ang_vertical = flow[:,:,1]* theta_vertical *np.pi/180 #rad
+            flow = flow.squeeze()
+            flow  = np.swapaxes(flow, 0, 1)
+            flow  = np.swapaxes(flow, 1, 2)
 
-    # u  = np.tan(ang_horizontal/2) * depths 
-    # v = np.tan(ang_vertical/2) * depths
+            # OpenCV uses BGR format
+            #bgr = cv.cvtColor(flow_rgb_npy, cv.COLOR_RGB2BGR)
+            #flow_bgr_npym = cv.bitwise_and(flow_bgr_npy, flow_bgr_npy, mask=new_mask)
 
-    # speed = np.sqrt(u**2 + v**2 + delta_depths**2) *1/5 #m/s
-    # speed = cv.bitwise_and(speed, speed, mask=disp_mask)
-    # speed[speed == disp_mask ] = None
-    # speed[speed>5000] = None
-    # speed1D = np.sqrt(u**2 + v**2) * 1/5 #m/s
+            #Farneback algorithm 
+            #next = cv.cvtColor(frame2, cv.COLOR_BGR2GRAY)
+            #flow = cv.calcOpticalFlowFarneback(prvs, next, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+            #print(flow)
+            #mag, ang = cv.cartToPolar(flow[..., 0], flow[..., 1])
+            #hsv[..., 0] = ang*180/np.pi/2
+            #hsv[..., 2] = cv.normalize(mag, None, 0, 255, cv.NORM_MINMAX)
+            #bgr = cv.cvtColor(hsv, cv.COLOR_HSV2BGR)
+            
+            #bgr = cv.bitwise_and(bgr, bgr, mask=maskcomb)
+            
+            #bgr = backSub.apply(z)
+            counts.append(count)
+            print('Count:', count)
+            if count ==0:
+                x = p
+                y = q
+                print('Im here')
 
-    # updraft  = delta_heights* 1/5
-    # updraft = cv.bitwise_and(updraft, updraft, mask=disp_mask)
-    # updraft[updraft == disp_mask] = None
-    # #updraft[updraft == 0] = None
-    # updraft[updraft > 5000] = None
-    # #speed[speed1D ==0] = 0
+            count +=1
 
-    # cloud_height.append(z)
-    # cloud_speed.append(speed)
-    # cloud_updraft.append(updraft)
-    
-    #     #plot
-    # fig, ax = plt.subplots(1,1)
-    # ax.set_xlabel('heights')
-    # disp = ax.imshow(z,'coolwarm')
-    # divider = make_axes_locatable(ax)
-    # cax = divider.append_axes('right', size='5%', pad=0.05)
-    # fig.colorbar(disp, cax=cax, orientation='vertical')
-    # plt.show()
-   
-    # plt.show()
+                #compute disparity map for the rectified images
+            disparity_map1 = stereo.compute(rimgL1, rimgR1).astype(np.float32)
+            
+                #combine mask1 and mask3 and rectify 
+            #maskcomb =  mask_C1[:,:,0] & mask_C3[:,:,0]
+            #rg_ratio = imgL[:, :, 1]/imgL[:, :, 2]
+            #new_mask =  maskcomb & (rg_ratio<1.1) & (rg_ratio>0.93)#maskL & thresh1
+            
 
-    k = cv.waitKey(30) & 0xff
-    if k == 27:
-        break
-    elif k == ord('s'):
-        cv.imwrite('opticalfb.png', frame2)
-        cv.imwrite('opticalhsv.png', bgr)
-    prvs = next
-    prvsR1 = imgR
-    prvsL1 = imgL
-cv.destroyAllWindows()
+            # buildmask = cv.remap(maskcomb, mapLx, mapLy,
+            #                         interpolation=cv.INTER_NEAREST,
+            #                         borderMode=cv.BORDER_CONSTANT,
+            #                         borderValue=(0, 0, 0, 0))
+
+            # disp_mask = cv.remap(new_mask, mapLx, mapLy,
+            #                         interpolation=cv.INTER_NEAREST,
+            #                         borderMode=cv.BORDER_CONSTANT,
+            #                         borderValue=(0, 0, 0, 0))
+        
+                #convert to depth
+            im3d = cv.reprojectImageTo3D((disparity_map1-32)/16, Q, handleMissingValues = True)
+            
+                #set out of range depths to 0
+            im3d[im3d == np.inf] = None
+            im3d[im3d == -np.inf] = None
+            im3d[im3d > 9000] = None
+            im3d[im3d == 0]  = None
+
+            tilt = 23 * np.pi/180
+            height_camera = 46
+
+            depths = np.sqrt(im3d[:,:,0]**2 + im3d[:,:,1]**2 + im3d[:,:,2]**2)
+            #depths = cv.bitwise_and(depths, depths, mask=disp_mask)
+
+            depths[depths > 9000] = None
+            angle  = np.arccos(im3d[:,:,2]/depths)
+            z = depths * np.sin(angle + tilt) + height_camera
+            #z = cv.bitwise_and(z, z, mask=disp_mask)
+            #z[z==disp_mask]=None
+
+            #change in depth between 2 frames
+
+            if x<112 or y<0 or x> 479 or y> 639 or math.isnan(z[y,x]):
+                biglist.append(heightpix)
+                bigcounts.append(count)
+                print('stop')
+                break
+            print('before x:',  x, 'before y', y)
+            x = x+round(flow[y, x,0])
+            y= y+round(flow[y, x,1])
+
+            print('flowx',flow[y, x,0],'flowy',flow[y,x,1])
+            print('x:',  x, 'y', y)
+            print('depths', depths[y,x])
+            print('height',z[y, x])
+
+            heightpix.append(z[y, x])
+            k = cv.waitKey(30) & 0xff
+            if count == 10:
+                biglist.append(heightpix)
+                bigcounts.append(count)
+                break
+            
+            prvs = next
+            prvsR1 = imgR
+            prvsL1 = imgL
+            k = cv.waitKey(30) & 0xff
+            if k == 27:
+                break
+            else:
+                continue
+        
+        cv.destroyAllWindows()
 
 #cloud_height  = np.reshape(cloud_height, (480*640*716, 1))
 #cloud_speed  = np.reshape(cloud_speed, (480*640*716, 1))
@@ -381,5 +284,11 @@ cv.destroyAllWindows()
 #np.savetxt('data/cloud_speed_'+date+'.csv', cloud_speed , delimiter=',', fmt='%s')
 #np.savetxt('data/cloud_updraft_'+date+'.csv', cloud_updraft , delimiter=',', fmt='%s')
 
-np.savetxt('data/height1pix_'+date+'-'+x1+'-'+y1+'.csv', height1pix , delimiter=',', fmt='%s')
+with open('data/heightpix_'+date+'.pkl','wb') as f:
+    pickle.dump(biglist, f)
+
+with open('data/framecount_'+date+'.pkl','wb') as f:
+    pickle.dump(bigcounts, f)
+
+#np.savetxt('data/height1pix_'+date+'-'+x1+'-'+y1+'.csv',  , delimiter=',', fmt='%s')
 print('done')

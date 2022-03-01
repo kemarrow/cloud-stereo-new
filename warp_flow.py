@@ -7,6 +7,7 @@ from ptlflow.utils.io_adapter import IOAdapter
 from ptlflow.utils import flow_utils
 import numpy as np 
 from matplotlib import pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 def warp(x, flo):
     """
@@ -50,19 +51,16 @@ success2, img1 = cap.read()
 #ret, frame1 = cap.read()
 
 #prvs = cv.cvtColor(frame1, cv.COLOR_BGR2GRAY)
-
+count = 0
 while(1):
     # Load the two images
     ret, img2 = cap.read()
 
     #print(img1.shape())
     #print(img2.shape())
-
+    count += 1
     io_adapter = IOAdapter(model, img1.shape[:2])
     inputs = io_adapter.prepare_inputs([img1, img2])
-
-    
-
 
     # Forward the inputs to obtain the model predictions
     predictions = model(inputs)
@@ -79,62 +77,102 @@ while(1):
     out = warp(img2_pt.unsqueeze(0).permute(0,3,1,2), flow.unsqueeze(0).float())
     out = out.permute(0,2,3,1)[0,...].detach().cpu().numpy()
 
-    fig, ((ax1, ax2, ax3), (ax4,ax5,ax6)) = plt.subplots(2,3, sharex =True, sharey=True)
+    #fig, ((ax1, ax2, ax3), (ax4,ax5,ax6)) = plt.subplots(2,3, sharex =True, sharey=True)
+    # fig  =  plt.figure()
+
+    # ax1= plt.subplot(334)
+    # ax2= plt.subplot(335)
+    # ax3 = plt.subplot(336)
+    # #ax4= plt.subplot(223)
+    # ax5= plt.subplot(332)
+    # ax6= plt.subplot(338)
+
+    img11 = cv.cvtColor(img1, cv.COLOR_RGB2BGR)
+    #img2 = cv.cvtColor(img2, cv.COLOR_RGB2BGR)
+    #out1= cv.cvtColor(out/255, cv.COLOR_RGB2BGR)
+    #out= cv.cvtColor(out, cv.COLOR_RGB2BGR)
+
+    # residual = np.abs(img2/255.0 - img1/255.0)
+    # #resisual= cv.cvtColor(residual, cv.COLOR_BGR2GRAY)
+    # residualwarp = np.abs(out/255.0 - img1/255.0)
+    # #resisualwarp= cv.cvtColor(residualwarp, cv.COLOR_BGR2GRAY)
     
+    # #residual = cv.cvtColor(residual, cv.COLOR_RGB2BGR)
+    # #residualwarp = cv.cvtColor(residualwarp, cv.COLOR_RGB2BGR)
+    # ax1.imshow(img1)
+    # ax2.imshow(img2)
+    # ax3.imshow(1-residual)
+    # #ax4.imshow(img1)
+    # ax5.imshow(out1)
+    # ax6.imshow(1-residualwarp)
+    # ax1.set_yticklabels([])
+    # #ax4.set_yticklabels([])
+    # #ax4.set_xticklabels([])
+    # ax5.set_xticklabels([])
+    # ax6.set_xticklabels([])
 
-    img1 = cv.cvtColor(img1, cv.COLOR_RGB2BGR)
-    img2 = cv.cvtColor(img2, cv.COLOR_RGB2BGR)
-    out1= cv.cvtColor(out/255, cv.COLOR_RGB2BGR)
-    out= cv.cvtColor(out, cv.COLOR_RGB2BGR)
+    # ax1.set_yticks([])
+    # ax1.set_xticks([])
 
-    residual = np.abs(img2/255.0 - img1/255.0)
-    residualwarp = np.abs(out/255.0 - img1/255.0)
+    # ax2.set_yticks([])
+    # ax2.set_xticks([])
 
-    
-    #residual = cv.cvtColor(residual, cv.COLOR_RGB2BGR)
-    #residualwarp = cv.cvtColor(residualwarp, cv.COLOR_RGB2BGR)
-    ax1.imshow(img1)
-    ax2.imshow(img2)
-    ax3.imshow(residual)
-    ax4.imshow(img1)
-    ax5.imshow(out1)
-    ax6.imshow(residualwarp)
-    ax1.set_yticklabels([])
-    ax4.set_yticklabels([])
-    ax4.set_xticklabels([])
-    ax5.set_xticklabels([])
-    ax6.set_xticklabels([])
+    # ax3.set_yticks([])
+    # ax3.set_xticks([])
 
-    ax1.set_yticks([])
-    ax1.set_xticks([])
+    # #ax4.set_yticks([])
+    # #ax4.set_xticks([])
 
-    ax2.set_yticks([])
-    ax2.set_xticks([])
+    # ax5.set_yticks([])
+    # ax5.set_xticks([])
 
-    ax3.set_yticks([])
-    ax3.set_xticks([])
-
-    ax4.set_yticks([])
-    ax4.set_xticks([])
-
-    ax5.set_yticks([])
-    ax5.set_xticks([])
-
-    ax6.set_yticks([])
-    ax6.set_xticks([])
+    # ax6.set_yticks([])
+    # ax6.set_xticks([])
    
-    ax1.set_xlabel('Frame 1')
-    ax2.set_xlabel('Frame 2')
-    ax3.set_xlabel('Residual')
-    ax4.set_xlabel('Frame 1')
-    ax5.set_xlabel('Frame 1 warped')
-    ax6.set_xlabel('Residual of warped images')
+    # ax1.set_xlabel('Frame 1')
+    # ax2.set_xlabel('Frame 2')
+    # ax3.set_xlabel('Residual')
+    # #ax4.set_xlabel('Frame 1')
+    # ax5.set_xlabel('Frame 1 warped')
+    # ax6.set_xlabel('Residual of warped images')
    
-    fig.tight_layout()
-    plt.show()
+    # fig.tight_layout()
+    # plt.show()
     
 
-    fig.savefig('Warping.eps', format='eps')
+    #fig.savefig('Warping.eps', format='eps')
+
+    flow = flow.permute(1, 2, 0)  # change from CHW to HWC shape
+    flow = flow.detach().numpy()
+    flow_viz = flow_utils.flow_to_rgb(flow)  # Represent the flow as RGB colors
+    flow_viz = cv.cvtColor(flow_viz, cv.COLOR_BGR2RGB)  # OpenCV uses BGR format
+
+    fig2, (x, ax) = plt.subplots(1,2)
+    x.imshow(img11)
+    x.set_xlabel('Left camera')
+    ax.set_xlabel('Flownet')
+    ax.imshow(flow_viz)
+
+    x.set_xticklabels([])
+    x.set_xticklabels([])
+    x.set_yticks([])
+    x.set_xticks([])
+
+    ax.set_xticklabels([])
+    ax.set_xticklabels([])
+    ax.set_yticks([])
+    ax.set_xticks([])
+
+    # disp = ax.imshow(flow_viz,'coolwarm')
+    # divider = make_axes_locatable(ax)
+    # cax = divider.append_axes('right', size='5%', pad=0.05)
+    # fig2.colorbar(disp, cax=cax, orientation='vertical')
+    #plt.show()
+
+    counting = str(count)
+    file_name = 'gif_opticalflow/opticalflow_' + counting.zfill(5) + '.png'
+
+    fig2.savefig(file_name,format='png')
 
     #cv.imwrite('raw_residual.png',np.abs(img2/255.0 - img1/255.0)*255.0*2.0)
     #cv.imwrite('aligned_residual.png',np.abs(out/255.0 - img1/255.0)*255.0*2.0)
@@ -143,6 +181,7 @@ while(1):
     #cv.imwrite('img2.png', img2)
 
     img1= img2
+
 
 # cv2.waitKey(0)
 

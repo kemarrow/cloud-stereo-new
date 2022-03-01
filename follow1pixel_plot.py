@@ -6,17 +6,23 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.image import NonUniformImage
 import pickle
 
-height = np.loadtxt('data/height1pix_2021-10-24_12A.csv', delimiter=',')
-height1 = np.loadtxt('data/height1pix_2021-10-24_12A-204-268.csv', delimiter=',')
-height1[height1>10000]=None
+date = '2021-10-24_12A'
+with open('data/heightpix_'+date+'.pkl','rb') as f:
+    height = pickle.load(f)
 
-x= np.linspace(1, len(height), len(height))
-x1 = np.linspace(1, len(height1), len(height1))
-time1 = x1*5
-time = x*5
+with open('data/framecount_'+date+'.pkl','rb') as f:
+    frame = pickle.load(f)
 
 
 
-plt.plot(time1, height1)
+print(height)
+print(frame)
+
+print(np.shape(height))
+for i in range(0, 50):
+    x  = np.linspace(0, len(height[i]),len(height[i]))
+    plt.plot(x, height[i])
+
 plt.show()
+
 

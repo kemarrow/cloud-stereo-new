@@ -15,6 +15,7 @@ import pickle
 import ptlflow
 from ptlflow.utils import flow_utils
 from ptlflow.utils.io_adapter import IOAdapter
+import pandas  as pd
 
 #fundamental_matrix = np.loadtxt(r'matrices/fundamental_matrix.csv', delimiter = ',')
 ##essential_matrix = np.loadtxt(r'matrices/essential_matrix.csv', delimiter = ',')
@@ -125,17 +126,41 @@ while(1):
     imgRR =imgR
     imgLL = imgL
     success2, imgL = vidcapL.read()
-    #ret2, img2 = cap2.read()
-    #img2 = cv.cvtColor(img2, cv.COLOR_BGR2GRAY)
+    
     if not ret:
         print('No frames grabbed!')
         break
+    
+    imgR = cv.undistort(imgR, CamM_right, Distort_right, None, new_camera_matrixright)
+    imgL = cv.undistort(imgL, CamM_left, Distort_left, None, new_camera_matrixleft)
 
-    io_adapter = IOAdapter(model, prvsL1.shape[:2])
+    prvsR1 = cv.undistort(prvsR1, CamM_right, Distort_right, None, new_camera_matrixright)
+    prvsL1 = cv.undistort(prvsL1, CamM_right, Distort_right, None, new_camera_matrixright)
+
+        # remaps each image to the new map
+    rimgR = cv.remap(imgR, mapRx, mapRy,
+                            interpolation=cv.INTER_NEAREST,
+                            borderMode=cv.BORDER_CONSTANT,
+                            borderValue=(0, 0, 0, 0))
+    rimgL = cv.remap(imgL, mapLx, mapLy,
+                            interpolation=cv.INTER_NEAREST,
+                            borderMode=cv.BORDER_CONSTANT,
+                            borderValue=(0, 0, 0, 0))
+        #previous image mapping
+    rimgR1 = cv.remap(prvsR1 , mapRx, mapRy,
+                            interpolation=cv.INTER_NEAREST,
+                            borderMode=cv.BORDER_CONSTANT,
+                            borderValue=(0, 0, 0, 0))
+    rimgL1 = cv.remap(prvsL1 , mapLx, mapLy,
+                            interpolation=cv.INTER_NEAREST,
+                            borderMode=cv.BORDER_CONSTANT,
+                            borderValue=(0, 0, 0, 0))
+
+    io_adapter = IOAdapter(model, rimgL1.shape[:2])
 
     # inputs is a dict {'images': torch.Tensor}
     # The tensor is 5D with a shape BNCHW. In this case, it will have the shape: (1, 2, 3, H, W)
-    inputs = io_adapter.prepare_inputs([prvsL1, imgL])
+    inputs = io_adapter.prepare_inputs([rimgL1, rimgL])
 
     # Forward the inputs through the model
     predictions = model(inputs)
@@ -188,10 +213,10 @@ while(1):
     #bgr = cv.bitwise_and(bgr, bgr, mask=maskcomb)
     
     #bgr = backSub.apply(z)
-    bgr = cv.remap(bgr, mapLx, mapLy,
-                            interpolation=cv.INTER_NEAREST,
-                            borderMode=cv.BORDER_CONSTANT,
-                            borderValue=(0, 0, 0, 0))
+    # bgr = cv.remap(bgr, mapLx, mapLy,
+    #                         interpolation=cv.INTER_NEAREST,
+    #                         borderMode=cv.BORDER_CONSTANT,
+    #                         borderValue=(0, 0, 0, 0))
     
     print(count)
     count +=1
@@ -204,27 +229,7 @@ while(1):
     
 
         #Undistort images
-    imgR = cv.undistort(imgR, CamM_right, Distort_right, None, new_camera_matrixright)
-    imgL = cv.undistort(imgL, CamM_left, Distort_left, None, new_camera_matrixleft)
-
-        # remaps each image to the new map
-    rimgR = cv.remap(imgR, mapRx, mapRy,
-                            interpolation=cv.INTER_NEAREST,
-                            borderMode=cv.BORDER_CONSTANT,
-                            borderValue=(0, 0, 0, 0))
-    rimgL = cv.remap(imgL, mapLx, mapLy,
-                            interpolation=cv.INTER_NEAREST,
-                            borderMode=cv.BORDER_CONSTANT,
-                            borderValue=(0, 0, 0, 0))
-        #previous image mapping
-    rimgR1 = cv.remap(prvsR1 , mapRx, mapRy,
-                            interpolation=cv.INTER_NEAREST,
-                            borderMode=cv.BORDER_CONSTANT,
-                            borderValue=(0, 0, 0, 0))
-    rimgL1 = cv.remap(prvsL1 , mapLx, mapLy,
-                            interpolation=cv.INTER_NEAREST,
-                            borderMode=cv.BORDER_CONSTANT,
-                            borderValue=(0, 0, 0, 0))
+    
                 
        
 
@@ -451,16 +456,18 @@ while(1):
     n, bins, patches = ax5.hist(speed, 2000, facecolor='g', alpha=0.75)
     plt.xlim(0, 25)
 
-    plt.show()
+    #plt.show()
 
     
-        #plot
+    #plot
     fig, ax = plt.subplots(1,1)
     ax.set_xlabel('heights')
-    disp = ax.imshow(z,'coolwarm')
+    disp = ax.imshow(z,'coolwarm', vmin = 800, vmax = 8000)
     divider = make_axes_locatable(ax)
     cax = divider.append_axes('right', size='5%', pad=0.05)
     fig.colorbar(disp, cax=cax, orientation='vertical')
+    file_name = 'heights' + str(count) + '.eps'
+    fig.savefig(file_name, format='eps')
     #plt.show()
 
     #fig5, ax5 = plt.subplots(1,1)
@@ -495,7 +502,7 @@ while(1):
 
     ax7.set_xlabel('Height (m)')
     ax7.set_ylabel('Updraft (m/s)')
-    ax7.set_title('histogram2d')
+    #ax7.set_title('histogram2d')
 
     #heat map  of speed vs height
     x = z.flatten()
@@ -505,8 +512,20 @@ while(1):
     #fig6, ax6 = plt.subplots(1,1)
     H, xedges, yedges = np.histogram2d(x[idx], y[idx], bins=(100, 100), range=[[500, 9000], [0,50]] )
     extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
-    print(np.shape(H.T))
+    print(extent)
+    print(np.shape(extent))
+
+
+    
+    #sum_col= []
+    #for i in H: 
+        #appen
+        #for j in i:
+            #speed = (extent[4]  - extent[3])/100 * j  * H.T[i, j]
+
+    print('shape', np.shape(H.T))
     spd = ax6.imshow(H.T, extent=extent, interpolation='nearest', origin='lower', cmap='coolwarm', aspect='auto')
+    
     divider = make_axes_locatable(ax6)
     cax6 = divider.append_axes('right', size='5%', pad=0.05)
     fig7.colorbar(spd, cax=cax6, orientation='vertical')
@@ -518,7 +537,30 @@ while(1):
     ax6.set_ylabel('Speed (m/s)')
     #ax6.set_title('histogram2d')
     #ax6.grid()
-    #plt.show()
+    plt.show()
+
+    spd = y[idx]
+    alt = x[idx]
+    spd[spd>20] = None
+    idx3 = (~np.isnan(alt+spd))
+
+    df = pd.DataFrame({'altitude': alt[idx3], 'speed':spd[idx3]})
+    bins = pd.cut(df['altitude'], 50)
+    
+    altitude = df.groupby(bins)['speed'].median()
+    count  = df.groupby(bins)['altitude'].count().rename('Count')
+    df2 = pd.concat([altitude, count], axis=1)
+    #print(df2.count())
+    #df2['count_of'] = df.groupby(bins)['speed'].count()
+    
+    df3 = df2[df2.Count > 400]
+
+    print(df2)
+    #df2 = df2.mean()  #.mean()
+
+    df3.plot(y='speed')
+
+    plt.show()
 
     #cv.imshow('frame2', bgr)
     #cv.imshow('frame1',frame2)
