@@ -3,7 +3,7 @@
 """
 Created on Thu Oct  7 15:48:52 2021
 
-@author: apple
+@author: Erin
 """
 #%%
 import cv2

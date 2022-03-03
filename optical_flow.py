@@ -11,7 +11,11 @@ from mask2 import mask_C1, mask_C3
 from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.image import NonUniformImage
-import  pickle
+import pickle
+import ptlflow
+from ptlflow.utils import flow_utils
+from ptlflow.utils.io_adapter import IOAdapter
+import pandas  as pd
 
 #fundamental_matrix = np.loadtxt(r'matrices/fundamental_matrix.csv', delimiter = ',')
 ##essential_matrix = np.loadtxt(r'matrices/essential_matrix.csv', delimiter = ',')
@@ -62,6 +66,8 @@ new_camera_matrixright, roi = cv.getOptimalNewCameraMatrix(CamM_right,Distort_ri
 
 mapLx, mapLy = cv.initUndistortRectifyMap(new_camera_matrixleft, Distort_left, Rleft, Pleft, (w,h), cv.CV_32FC1)
 mapRx, mapRy = cv.initUndistortRectifyMap(new_camera_matrixright, Distort_right, Rright, Pright, (w,h), cv.CV_32FC1)
+
+model = ptlflow.get_model('flownet2', pretrained_ckpt='things') #other models are here: https://ptlflow.readthedocs.io/en/latest/models/models_list.html
 
 #Set disparity parameters
 #Note: disparity range is tuned according to specific parameters obtained through trial and error.
@@ -117,41 +123,19 @@ count  = 0
 while(1):
     ret, frame2 = cap.read()
     success, imgR = vidcapR.read()
+    imgRR =imgR
+    imgLL = imgL
     success2, imgL = vidcapL.read()
-    #ret2, img2 = cap2.read()
-    #img2 = cv.cvtColor(img2, cv.COLOR_BGR2GRAY)
+    
     if not ret:
         print('No frames grabbed!')
         break
-    next = cv.cvtColor(frame2, cv.COLOR_BGR2GRAY)
-    flow = cv.calcOpticalFlowFarneback(prvs, next, None, 0.5, 3, 15, 3, 5, 1.2, 0)
-    #print(flow)
-    print(count)
-    count +=1
-    mag, ang = cv.cartToPolar(flow[..., 0], flow[..., 1])
-    hsv[..., 0] = ang*180/np.pi/2
-    hsv[..., 2] = cv.normalize(mag, None, 0, 255, cv.NORM_MINMAX)
-    bgr = cv.cvtColor(hsv, cv.COLOR_HSV2BGR)
     
-    maskcomb =  mask_C1[:,:,0] & mask_C3[:,:,0]
-    bgr = cv.bitwise_and(bgr, bgr, mask=maskcomb)
-    
-    #bgr = backSub.apply(z)
-    bgr = cv.remap(bgr, mapLx, mapLy,
-                            interpolation=cv.INTER_NEAREST,
-                            borderMode=cv.BORDER_CONSTANT,
-                            borderValue=(0, 0, 0, 0))
-    
-    
-    #imgR = cv.bitwise_and(imgR, imgR, mask=mask_C1[:, :, 0])
-    #imgL = cv.bitwise_and(imgL, imgL, mask=mask_C3[:, :, 0])
-
-    #prvsR1  = cv.bitwise_and(prvsR1, prvsR1, mask=mask_C1[:, :, 0])
-    #prvsL1  = cv.bitwise_and(prvsL1, prvsL1, mask=mask_C3[:, :, 0])
-
-        #Undistort images
     imgR = cv.undistort(imgR, CamM_right, Distort_right, None, new_camera_matrixright)
     imgL = cv.undistort(imgL, CamM_left, Distort_left, None, new_camera_matrixleft)
+
+    prvsR1 = cv.undistort(prvsR1, CamM_right, Distort_right, None, new_camera_matrixright)
+    prvsL1 = cv.undistort(prvsL1, CamM_right, Distort_right, None, new_camera_matrixright)
 
         # remaps each image to the new map
     rimgR = cv.remap(imgR, mapRx, mapRy,
@@ -171,6 +155,81 @@ while(1):
                             interpolation=cv.INTER_NEAREST,
                             borderMode=cv.BORDER_CONSTANT,
                             borderValue=(0, 0, 0, 0))
+
+    io_adapter = IOAdapter(model, rimgL1.shape[:2])
+
+    # inputs is a dict {'images': torch.Tensor}
+    # The tensor is 5D with a shape BNCHW. In this case, it will have the shape: (1, 2, 3, H, W)
+    inputs = io_adapter.prepare_inputs([rimgL1, rimgL])
+
+    # Forward the inputs through the model
+    predictions = model(inputs)
+
+    # Remove extra padding that may have been added to the inputs
+    predictions = io_adapter.unpad_and_unscale(predictions)
+
+    # The output is a dict with possibly several keys,
+    # but it should always store the optical flow prediction in a key called 'flows'.
+    flows = predictions['flows']
+    flow  =  flows.detach().numpy()
+   
+    #flows will be a 5D tensor BNCHW.
+    # This example should print a shape (1, 1, 2, H, W).
+    # Create an RGB representation of the flow to show it on the screen
+    flow_rgb = flow_utils.flow_to_rgb(flows)
+    print(np.shape(flow_rgb))
+    # Make it a numpy array with HWC shape
+    flow_rgb = flow_rgb[0, 0].permute(1, 2, 0)
+    flow_rgb_npy = flow_rgb.detach().cpu().numpy()
+
+    flownet  = cv.cvtColor(flow_rgb_npy, cv.COLOR_BGR2GRAY)
+
+    flow= flow.squeeze()
+    flow  = np.swapaxes(flow, 0, 1)
+    flow  = np.swapaxes(flow, 1, 2)
+
+    # OpenCV uses BGR format
+  
+    #rg_ratio = imgL[:, :, 1]/imgL[:, :, 2]
+    #new_mask =  mask_C3[:,:,0] & (rg_ratio<1.1) & (rg_ratio>0.93)#maskL & thresh1
+    
+    #rg_ratio1 = prvsL1[:, :, 1]/prvsL1[:, :, 2]
+    #new_mask1 =  maskcomb & (rg_ratio1<1.1) & (rg_ratio1>0.93)
+
+    bgr = cv.cvtColor(flow_rgb_npy, cv.COLOR_RGB2BGR)
+    #flow_bgr_npym = cv.bitwise_and(flow_bgr_npy, flow_bgr_npy, mask=new_mask)
+
+
+    #Farneback algorithm 
+    #next = cv.cvtColor(frame2, cv.COLOR_BGR2GRAY)
+    #flow = cv.calcOpticalFlowFarneback(prvs, next, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+    #print(flow)
+    #mag, ang = cv.cartToPolar(flow[..., 0], flow[..., 1])
+    #hsv[..., 0] = ang*180/np.pi/2
+    #hsv[..., 2] = cv.normalize(mag, None, 0, 255, cv.NORM_MINMAX)
+    #bgr = cv.cvtColor(hsv, cv.COLOR_HSV2BGR)
+    
+    
+    #bgr = cv.bitwise_and(bgr, bgr, mask=maskcomb)
+    
+    #bgr = backSub.apply(z)
+    # bgr = cv.remap(bgr, mapLx, mapLy,
+    #                         interpolation=cv.INTER_NEAREST,
+    #                         borderMode=cv.BORDER_CONSTANT,
+    #                         borderValue=(0, 0, 0, 0))
+    
+    print(count)
+    count +=1
+    #imgR = cv.bitwise_and(imgR, imgR, mask=mask_C1[:, :, 0])
+    #imgL = cv.bitwise_and(imgL, imgL, mask=mask_C3[:, :, 0])
+
+    #prvsR1  = cv.bitwise_and(prvsR1, prvsR1, mask=mask_C1[:, :, 0])
+    #prvsL1  = cv.bitwise_and(prvsL1, prvsL1, mask=mask_C3[:, :, 0])
+
+    
+
+        #Undistort images
+    
                 
        
 
@@ -191,12 +250,14 @@ while(1):
     disparity_map1 = stereo.compute(rimgL1, rimgR1).astype(np.float32)
 
          #combine mask1 and mask3 and rectify 
+    maskcomb =  mask_C1[:,:,0] & mask_C3[:,:,0]
     rg_ratio = imgL[:, :, 1]/imgL[:, :, 2]
     new_mask =  maskcomb & (rg_ratio<1.1) & (rg_ratio>0.93)#maskL & thresh1
     
     rg_ratio1 = prvsL1[:, :, 1]/prvsL1[:, :, 2]
     new_mask1 =  maskcomb & (rg_ratio1<1.1) & (rg_ratio1>0.93) #maskL1 &thresh1
-   
+    
+
     buildmask = cv.remap(maskcomb, mapLx, mapLy,
                             interpolation=cv.INTER_NEAREST,
                             borderMode=cv.BORDER_CONSTANT,
@@ -212,6 +273,7 @@ while(1):
                             borderMode=cv.BORDER_CONSTANT,
                             borderValue=(0, 0, 0, 0))
 
+    
         #convert to depth
     im3d = cv.reprojectImageTo3D(disparity_map2/16, Q, handleMissingValues = True)
     im3d1 = cv.reprojectImageTo3D(disparity_map1/16, Q, handleMissingValues = True)
@@ -237,6 +299,7 @@ while(1):
     angle  = np.arccos(im3d[:,:,2]/depths)
     z = depths * np.sin(angle + tilt) + height_camera
     z = cv.bitwise_and(z, z, mask=disp_mask)
+    z[z==disp_mask]=None
     
 
     depths1 = np.sqrt(im3d1[:,:,0]**2 + im3d1[:,:,1]**2 + im3d1[:,:,2]**2)
@@ -245,19 +308,19 @@ while(1):
     angle1  = np.arccos(im3d1[:,:,2]/depths1)
     z1 = depths1 * np.sin(angle1 + tilt) + height_camera
     z1 = cv.bitwise_and(z1, z1, mask=disp_mask1)
-
+    z1[z1==disp_mask1]=None
     #change in depth between 2 frames
     delta_depths =[]
     for  r, valuex in enumerate(depths):
         for  i, value in enumerate(valuex):
             #print(flow[r,i,0])
-            x = r+round(flow[r,i,0])
-            y = i+round(flow[r,i,1])
-            if x<0 or y<0 or x> 479 or y> 639:
+            y = r+round(flow[r,i,0])
+            x = i+round(flow[r,i,1])
+            if x<0 or y<0 or x> 639 or y>  479:
                 delta_depth = 50000#depths[r,i] - depths1[r,i]
                 delta_depths.append(delta_depth)
             else:
-                delta_depth = depths[x, y] - depths1[r,i]
+                delta_depth = depths[y, x] - depths1[r,i]
                 delta_depths.append(delta_depth)
     delta_depths=np.reshape(delta_depths,(480,640))
 
@@ -266,17 +329,59 @@ while(1):
     for  p, valuehx in enumerate(z):
         for q, valueh in enumerate(valuehx):
             #print(flow[r,i,0])
-            x = p+round(flow[p,q,0])
-            y = q+round(flow[p,q,1])
-            if x<0 or y<0 or x> 479 or y> 639:
+            y = p+round(flow[p,q,0])
+            x = q+round(flow[p,q,1])
+            if x<0 or y<0 or x> 639 or y> 479:
                 delta_height = 50000#depths[r,i] - depths1[r,i]
                 delta_heights.append(delta_height)
             else:
-                delta_height = z[x, y] - z1[p,q]
+                delta_height = z[y, x] - z1[p,q]
                 delta_heights.append(delta_height)
     delta_heights=np.reshape(delta_heights,(480,640))
     
-        
+    
+    fig, ((ax1,ax2), (ax3,ax4))  = plt.subplots(2,2, sharex = True, sharey = True)
+    imgRR  = cv.cvtColor(imgRR, cv.COLOR_RGB2BGR)
+    imgLL = cv.cvtColor(imgLL, cv.COLOR_RGB2BGR)
+    rimgRR = cv.cvtColor(rimgR, cv.COLOR_RGB2BGR)
+    rimgLL = cv.cvtColor(rimgL, cv.COLOR_RGB2BGR)
+
+    ax1.imshow(imgRR)
+    ax1.set_xlabel('Camera 1 (right)')
+    ax2.imshow(imgLL)
+    ax2.set_xlabel('Camera 2 (left)')
+
+    ax3.imshow(rimgRR)
+    ax3.set_xlabel('Camera 1 rectified')
+    ax4.imshow(rimgLL)
+    ax4.set_xlabel('Camera 2 rectified')
+
+    plt.show()
+
+    fig, (ax1,ax2,ax3)  = plt.subplots(1,3, sharex = True, sharey = True)
+    
+    img = cv.bitwise_and(rimgL, rimgL, mask=disp_mask)
+    ax1.imshow(img)
+    ax1.set_xlabel('Mask')
+
+
+    disparity_map22  = cv.bitwise_and(disparity_map2, disparity_map2, mask =  buildmask)
+    #disparity_map22[disparity_map22== disp_mask]= None
+    ax2.set_xlabel('Disparity Map')
+    disp = ax2.imshow(disparity_map22,'coolwarm')
+    divider = make_axes_locatable(ax2)
+    cax = divider.append_axes('right', size='5%', pad=0.05)
+    fig.colorbar(disp, cax=cax, orientation='vertical')
+    depths[depths==0] = None
+    depth = ax3.imshow(depths, 'coolwarm')
+    ax3.set_xlabel('Depth map')
+    divider2 = make_axes_locatable(ax3)
+    cax2 = divider2.append_axes('right', size='5%', pad=0.05)
+    fig.colorbar(depth, cax=cax2, orientation='vertical')
+    
+    plt.show()
+
+
         #set non physical changes to none
     #delta_heights[delta_heights==0] = None
     #delta_depths[delta_depths==0] = None
@@ -295,11 +400,13 @@ while(1):
 
     speed = np.sqrt(u**2 + v**2 + delta_depths**2) *1/5 #m/s
     speed = cv.bitwise_and(speed, speed, mask=disp_mask)
+    speed[speed == disp_mask ] = None
     speed[speed>5000] = None
     speed1D = np.sqrt(u**2 + v**2) * 1/5 #m/s
 
     updraft  = delta_heights* 1/5
-    #updraft = cv.bitwise_and(updraft, updraft, mask=disp_mask)
+    updraft = cv.bitwise_and(updraft, updraft, mask=disp_mask)
+    updraft[updraft == disp_mask] = None
     #updraft[updraft == 0] = None
     updraft[updraft > 5000] = None
     #speed[speed1D ==0] = 0
@@ -308,8 +415,12 @@ while(1):
     cloud_speed.append(speed)
     cloud_updraft.append(updraft)
 
-    fig3, ((ax3,ax4), (ax5, ax6)) = plt.subplots(2,2, sharex =  True, sharey =True)
+    fig3, ((axx, ax3,ax4), (ax5, ax6, ax7)) = plt.subplots(2,3, sharex =  True, sharey =True)
     masked_left = cv.bitwise_and(rimgL, rimgL, mask = buildmask)
+    masked_left = cv.cvtColor(masked_left, cv.COLOR_RGB2BGR)
+    #imgL  = cv.cvtColor(imgL, cv.COLOR_RGB2BGR)
+    axx.imshow(imgL)
+    #masked_left = cvt.colo5
     ax3.imshow(masked_left)
     spd = ax3.imshow(speed)
     dividerh = make_axes_locatable(ax3)
@@ -319,6 +430,7 @@ while(1):
     ax3.set_xlabel('speed')
 
     #fig4, ax4 = plt.subplots(1,1)
+    
     ax4.imshow(masked_left)
     upd = ax4.imshow(updraft, cmap = 'coolwarm')
     dividerh = make_axes_locatable(ax4)
@@ -327,8 +439,16 @@ while(1):
     ax4.set_xlabel('updraft')
     img = cv.bitwise_and(rimgL, rimgL, mask=disp_mask)
     ax5.imshow(img)
+    ax5.set_xlabel('Mask')
     ax6.imshow(bgr)
-    fig3.tight_layout(pad=1.0)
+    ax6.set_xlabel('Flownet')
+    fig3.tight_layout(pad=0.5)
+
+    ax7.set_xlabel('Disparity Map')
+    disp = ax7.imshow(disparity_map2,'coolwarm')
+    divider = make_axes_locatable(ax7)
+    cax = divider.append_axes('right', size='5%', pad=0.05)
+    fig3.colorbar(disp, cax=cax, orientation='vertical')
     plt.show()
     
     fig5, ax5 = plt.subplots(1,1)
@@ -336,16 +456,19 @@ while(1):
     n, bins, patches = ax5.hist(speed, 2000, facecolor='g', alpha=0.75)
     plt.xlim(0, 25)
 
-    plt.show()
+    #plt.show()
+
     
-        #plot
+    #plot
     fig, ax = plt.subplots(1,1)
-    ax.set_xlabel('depths (m/s)')
-    disp = ax.imshow(depths,'coolwarm')
+    ax.set_xlabel('heights')
+    disp = ax.imshow(z,'coolwarm', vmin = 800, vmax = 8000)
     divider = make_axes_locatable(ax)
     cax = divider.append_axes('right', size='5%', pad=0.05)
     fig.colorbar(disp, cax=cax, orientation='vertical')
-    plt.show()
+    file_name = 'heights' + str(count) + '.eps'
+    fig.savefig(file_name, format='eps')
+    #plt.show()
 
     #fig5, ax5 = plt.subplots(1,1)
     #fig5 = plt.figure()
@@ -379,7 +502,7 @@ while(1):
 
     ax7.set_xlabel('Height (m)')
     ax7.set_ylabel('Updraft (m/s)')
-    ax7.set_title('histogram2d')
+    #ax7.set_title('histogram2d')
 
     #heat map  of speed vs height
     x = z.flatten()
@@ -387,33 +510,69 @@ while(1):
     #print(x.shape)
     idx = (~np.isnan(x+y))
     #fig6, ax6 = plt.subplots(1,1)
-    H, xedges, yedges = np.histogram2d(x[idx], y[idx], bins=(100, 100))# range=[[1000, 9000], [0,200]] )
+    H, xedges, yedges = np.histogram2d(x[idx], y[idx], bins=(100, 100), range=[[500, 9000], [0,50]] )
     extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
+    print(extent)
+    print(np.shape(extent))
+
+
+    
+    #sum_col= []
+    #for i in H: 
+        #appen
+        #for j in i:
+            #speed = (extent[4]  - extent[3])/100 * j  * H.T[i, j]
+
+    print('shape', np.shape(H.T))
     spd = ax6.imshow(H.T, extent=extent, interpolation='nearest', origin='lower', cmap='coolwarm', aspect='auto')
+    
     divider = make_axes_locatable(ax6)
     cax6 = divider.append_axes('right', size='5%', pad=0.05)
-    #fig7.colorbar(spd, cax=cax6, orientation='vertical')
-
-    #ax6.set_xlabel('Height (m)')
-    #ax6.set_ylabel('Speed (m/s)')
+    fig7.colorbar(spd, cax=cax6, orientation='vertical')
+    #ax6.plot(6.687242798, 6.687242798)
+    ax6.axvline(x=1280.09, color='black', linestyle='-')
+    ax6.axvline(x=1066.74, color='black', linestyle='-')
+    ax6.axhline(y=6.687242798, color='black', linestyle='-')
+    ax6.set_xlabel('Height (m)')
+    ax6.set_ylabel('Speed (m/s)')
     #ax6.set_title('histogram2d')
     #ax6.grid()
-    #plt.show()
+    plt.show()
+
+    spd = y[idx]
+    alt = x[idx]
+    spd[spd>20] = None
+    idx3 = (~np.isnan(alt+spd))
+
+    df = pd.DataFrame({'altitude': alt[idx3], 'speed':spd[idx3]})
+    bins = pd.cut(df['altitude'], 50)
+    
+    altitude = df.groupby(bins)['speed'].median()
+    count  = df.groupby(bins)['altitude'].count().rename('Count')
+    df2 = pd.concat([altitude, count], axis=1)
+    #print(df2.count())
+    #df2['count_of'] = df.groupby(bins)['speed'].count()
+    
+    df3 = df2[df2.Count > 400]
+
+    print(df2)
+    #df2 = df2.mean()  #.mean()
+
+    df3.plot(y='speed')
+
+    plt.show()
 
     #cv.imshow('frame2', bgr)
     #cv.imshow('frame1',frame2)
     #cv.imshow('depths',delta_depths)
     #mag[mag == 0]  = None
 
-    
     #plot the optical flow on the image
     #fig2, ax2 = plt.subplots(1,1)
     #ax2.imshow(img) 
     #x,y = np.meshgrid(np.linspace(0,640,640),np.linspace(0,480,480))
     #ax2.quiver(x, y, u, v, color  = 'red')
     #plt.show()
-    
-    
 
     k = cv.waitKey(30) & 0xff
     if k == 27:
