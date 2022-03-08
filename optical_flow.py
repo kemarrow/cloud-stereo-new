@@ -17,20 +17,6 @@ from ptlflow.utils import flow_utils
 from ptlflow.utils.io_adapter import IOAdapter
 import pandas  as pd
 
-#fundamental_matrix = np.loadtxt(r'matrices/fundamental_matrix.csv', delimiter = ',')
-##essential_matrix = np.loadtxt(r'matrices/essential_matrix.csv', delimiter = ',')
-#pose = np.loadtxt(r'matrices/pose[1].csv', delimiter = ',')
-#T = np.loadtxt(r'matrices/T.csv', delimiter = ',')
-# Rleft = np.loadtxt(r'matrices/Rleft.csv', delimiter = ',')
-# Rright = np.loadtxt(r'matrices/Rright.csv', delimiter = ',')
-# Pleft = np.loadtxt(r'matrices/Pleft.csv', delimiter = ',')
-# Pright = np.loadtxt(r'matrices/Pright.csv', delimiter = ',')
-# Q = np.loadtxt(r'matrices/Q.csv', delimiter = ',')
-# Hleft = np.loadtxt(r'matrices/Hleft.csv', delimiter = ',')
-# Hright = np.loadtxt(r'matrices/Hright.csv', delimiter = ',')
-# roi_left = np.loadtxt(r'matrices/roi_left.csv', delimiter = ',')
-# roi_right = np.loadtxt(r'matrices/roi_right.csv', delimiter = ',')
-
 stereo_cal = pickle.load( open( 'stereo_cal_mat.pkl', "rb" ) )
 
 fundamental_matrix = stereo_cal.get('F')
@@ -71,19 +57,34 @@ model = ptlflow.get_model('flownet2', pretrained_ckpt='things') #other models ar
 
 #Set disparity parameters
 #Note: disparity range is tuned according to specific parameters obtained through trial and error.
-win_size = 8
-min_disp = 0
-max_disp = 7
-num_disp = 16*max_disp - 16*min_disp # Needs to be divisible by 16
+# win_size = 8
+# min_disp = 0
+# max_disp = 7
+# num_disp = 16*max_disp - 16*min_disp # Needs to be divisible by 16
 
-#Create Block matching object.
+# #Create Block matching object.
+# stereo = cv.StereoSGBM_create(minDisparity= min_disp,
+#  numDisparities = num_disp,
+#  blockSize = 9,
+#  uniquenessRatio = 13,
+#  speckleWindowSize = 5,
+#  speckleRange = 14,
+#  disp12MaxDiff = 7,
+#  P1 = 8*3*win_size**2,
+#  P2 =32*3*win_size**2)
+
+win_size = 11
+min_disp = 0
+max_disp = 4
+num_disp = 16*max_disp - 16*min_disp # Needs to be divisible by 16
+#Create semi global block matching object
 stereo = cv.StereoSGBM_create(minDisparity= min_disp,
  numDisparities = num_disp,
- blockSize = 9,
+ blockSize = 11,
  uniquenessRatio = 13,
- speckleWindowSize = 5,
- speckleRange = 14,
- disp12MaxDiff = 7,
+ speckleWindowSize = 176,
+ speckleRange = 3,
+ disp12MaxDiff = 6,
  P1 = 8*3*win_size**2,
  P2 =32*3*win_size**2)
 
@@ -130,7 +131,8 @@ while(1):
     if not ret:
         print('No frames grabbed!')
         break
-    
+
+    #undistort all images
     imgR = cv.undistort(imgR, CamM_right, Distort_right, None, new_camera_matrixright)
     imgL = cv.undistort(imgL, CamM_left, Distort_left, None, new_camera_matrixleft)
 
@@ -395,28 +397,28 @@ while(1):
     ang_horizontal = flow[:,:,0]* theta_horizontal *np.pi/180 #rad
     ang_vertical = flow[:,:,1]* theta_vertical *np.pi/180 #rad
 
-    u  = np.tan(ang_horizontal/2) * depths 
-    v = np.tan(ang_vertical/2) * depths
+    u  = np.tan(ang_horizontal/2) * depths *2
+    v = np.tan(ang_vertical/2) * depths *2
 
     speed = np.sqrt(u**2 + v**2 + delta_depths**2) *1/5 #m/s
-    speed = cv.bitwise_and(speed, speed, mask=disp_mask)
-    speed[speed == disp_mask ] = None
+    speed = cv.bitwise_and(speed, speed, mask=disp_mask1)
+    speed[speed == disp_mask1 ] = None
     speed[speed>5000] = None
     speed1D = np.sqrt(u**2 + v**2) * 1/5 #m/s
 
     updraft  = delta_heights* 1/5
-    updraft = cv.bitwise_and(updraft, updraft, mask=disp_mask)
-    updraft[updraft == disp_mask] = None
+    updraft = cv.bitwise_and(updraft, updraft, mask=disp_mask1)
+    updraft[updraft == disp_mask1] = None
     #updraft[updraft == 0] = None
     updraft[updraft > 5000] = None
     #speed[speed1D ==0] = 0
 
-    cloud_height.append(z)
+    cloud_height.append(z1)
     cloud_speed.append(speed)
     cloud_updraft.append(updraft)
 
     fig3, ((axx, ax3,ax4), (ax5, ax6, ax7)) = plt.subplots(2,3, sharex =  True, sharey =True)
-    masked_left = cv.bitwise_and(rimgL, rimgL, mask = buildmask)
+    masked_left = cv.bitwise_and(rimgL1, rimgL1, mask = buildmask)
     masked_left = cv.cvtColor(masked_left, cv.COLOR_RGB2BGR)
     #imgL  = cv.cvtColor(imgL, cv.COLOR_RGB2BGR)
     axx.imshow(imgL)
@@ -445,7 +447,7 @@ while(1):
     fig3.tight_layout(pad=0.5)
 
     ax7.set_xlabel('Disparity Map')
-    disp = ax7.imshow(disparity_map2,'coolwarm')
+    disp = ax7.imshow(disparity_map22,'coolwarm')
     divider = make_axes_locatable(ax7)
     cax = divider.append_axes('right', size='5%', pad=0.05)
     fig3.colorbar(disp, cax=cax, orientation='vertical')
@@ -456,7 +458,7 @@ while(1):
     n, bins, patches = ax5.hist(speed, 2000, facecolor='g', alpha=0.75)
     plt.xlim(0, 25)
 
-    #plt.show()
+    plt.show()
 
     
     #plot
@@ -514,8 +516,6 @@ while(1):
     extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
     print(extent)
     print(np.shape(extent))
-
-
     
     #sum_col= []
     #for i in H: 
@@ -530,36 +530,10 @@ while(1):
     cax6 = divider.append_axes('right', size='5%', pad=0.05)
     fig7.colorbar(spd, cax=cax6, orientation='vertical')
     #ax6.plot(6.687242798, 6.687242798)
-    ax6.axvline(x=1280.09, color='black', linestyle='-')
-    ax6.axvline(x=1066.74, color='black', linestyle='-')
-    ax6.axhline(y=6.687242798, color='black', linestyle='-')
     ax6.set_xlabel('Height (m)')
     ax6.set_ylabel('Speed (m/s)')
     #ax6.set_title('histogram2d')
     #ax6.grid()
-    plt.show()
-
-    spd = y[idx]
-    alt = x[idx]
-    spd[spd>20] = None
-    idx3 = (~np.isnan(alt+spd))
-
-    df = pd.DataFrame({'altitude': alt[idx3], 'speed':spd[idx3]})
-    bins = pd.cut(df['altitude'], 50)
-    
-    altitude = df.groupby(bins)['speed'].median()
-    count  = df.groupby(bins)['altitude'].count().rename('Count')
-    df2 = pd.concat([altitude, count], axis=1)
-    #print(df2.count())
-    #df2['count_of'] = df.groupby(bins)['speed'].count()
-    
-    df3 = df2[df2.Count > 400]
-
-    print(df2)
-    #df2 = df2.mean()  #.mean()
-
-    df3.plot(y='speed')
-
     plt.show()
 
     #cv.imshow('frame2', bgr)

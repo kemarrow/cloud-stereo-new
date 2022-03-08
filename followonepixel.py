@@ -106,7 +106,7 @@ theta_vertical = vertical_fov/h #degree/pixel
 biglist = []
 bigcounts =  []
 
-for x in range(240, 245):
+for x in range(240, 244):
     print('changing x')
     p = x
     for y in range(120, 130):
@@ -160,8 +160,6 @@ for x in range(240, 245):
             flows = predictions['flows']
             flow  =  flows.detach().numpy()
 
-            
-        
             #flows will be a 5D tensor BNCHW.
             # This example should print a shape (1, 1, 2, H, W).
             # Create an RGB representation of the flow to show it on the screen
@@ -242,8 +240,8 @@ for x in range(240, 245):
             #z = cv.bitwise_and(z, z, mask=disp_mask)
             #z[z==disp_mask]=None
 
-            #change in depth between 2 frames
 
+            heightpix.append(z[y, x])
             if x<112 or y<0 or x> 479 or y> 639 or math.isnan(z[y,x]):
                 biglist.append(heightpix)
                 bigcounts.append(count)
@@ -258,9 +256,9 @@ for x in range(240, 245):
             print('depths', depths[y,x])
             print('height',z[y, x])
 
-            heightpix.append(z[y, x])
+            
             k = cv.waitKey(30) & 0xff
-            if count == 10:
+            if count == 5:
                 biglist.append(heightpix)
                 bigcounts.append(count)
                 break
@@ -284,10 +282,10 @@ for x in range(240, 245):
 #np.savetxt('data/cloud_speed_'+date+'.csv', cloud_speed , delimiter=',', fmt='%s')
 #np.savetxt('data/cloud_updraft_'+date+'.csv', cloud_updraft , delimiter=',', fmt='%s')
 
-with open('data/heightpix_'+date+'.pkl','wb') as f:
+with open('data/heightpix_'+date+'2.pkl','wb') as f:
     pickle.dump(biglist, f)
 
-with open('data/framecount_'+date+'.pkl','wb') as f:
+with open('data/framecount_'+date+'2.pkl','wb') as f:
     pickle.dump(bigcounts, f)
 
 #np.savetxt('data/height1pix_'+date+'-'+x1+'-'+y1+'.csv',  , delimiter=',', fmt='%s')

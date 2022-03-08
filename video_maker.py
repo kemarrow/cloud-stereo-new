@@ -25,7 +25,7 @@ out.release()
 
 '''
 
-png_dir = 'gif_opticalflow'
+png_dir = 'gif_speeds'
 images = []
 for file_name in sorted(os.listdir(png_dir)):
     if file_name.endswith('.png'):
@@ -35,4 +35,4 @@ for file_name in sorted(os.listdir(png_dir)):
 
 #test
 
-imageio.mimsave('movie2.gif', images)
+imageio.mimsave('movie3.gif', images)

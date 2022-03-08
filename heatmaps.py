@@ -262,7 +262,7 @@ while(1):
     im3d1[im3d1 == -np.inf] = None
     im3d1[im3d1 > 9000] = None
 
-    tilt = 23 * np.pi/180
+    tilt = 23.7 * np.pi/180
     height_camera = 46
 
     depths = np.sqrt(im3d[:,:,0]**2 + im3d[:,:,1]**2 + im3d[:,:,2]**2)
@@ -283,7 +283,7 @@ while(1):
     z1[z1==disp_mask1]=None
     #change in depth between 2 frames
     delta_depths =[]
-    for  r, valuex in enumerate(depths):
+    for  r, valuex in enumerate(depths1):
         for  i, value in enumerate(valuex):
             #print(flow[r,i,0])
             y = r+round(flow[r,i,0])
@@ -298,7 +298,7 @@ while(1):
 
     #change in height between 2 frames
     delta_heights = []
-    for  p, valuehx in enumerate(z):
+    for  p, valuehx in enumerate(z1):
         for q, valueh in enumerate(valuehx):
             #print(flow[r,i,0])
             y = p+round(flow[p,q,0])
@@ -324,18 +324,18 @@ while(1):
     ang_horizontal = flow[:,:,0]* theta_horizontal *np.pi/180 #rad
     ang_vertical = flow[:,:,1]* theta_vertical *np.pi/180 #rad
 
-    u  = np.tan(ang_horizontal/2) * depths 
-    v = np.tan(ang_vertical/2) * depths
+    u  = np.tan(ang_horizontal/2) * depths *2
+    v = np.tan(ang_vertical/2) * depths *2
 
     speed = np.sqrt(u**2 + v**2 + delta_depths**2) *1/5 #m/s
-    speed = cv.bitwise_and(speed, speed, mask=disp_mask)
-    speed[speed == disp_mask ] = None
+    speed = cv.bitwise_and(speed, speed, mask=disp_mask1)
+    speed[speed == disp_mask1] = None
     speed[speed>5000] = None
     speed1D = np.sqrt(u**2 + v**2) * 1/5 #m/s
 
     updraft  = delta_heights* 1/5
-    updraft = cv.bitwise_and(updraft, updraft, mask=disp_mask)
-    updraft[updraft == disp_mask] = None
+    updraft = cv.bitwise_and(updraft, updraft, mask=disp_mask1)
+    updraft[updraft == disp_mask1] = None
     #updraft[updraft == 0] = None
     updraft[updraft > 5000] = None
     #speed[speed1D ==0] = 0

@@ -7,10 +7,10 @@ from matplotlib.image import NonUniformImage
 import pickle
 
 date = '2021-10-24_12A'
-with open('data/heightpix_'+date+'.pkl','rb') as f:
+with open('data/heightpix_'+date+'2.pkl','rb') as f:
     height = pickle.load(f)
 
-with open('data/framecount_'+date+'.pkl','rb') as f:
+with open('data/framecount_'+date+'2.pkl','rb') as f:
     frame = pickle.load(f)
 
 
@@ -19,9 +19,12 @@ print(height)
 print(frame)
 
 print(np.shape(height))
-for i in range(0, 50):
+for i in range(0, 40):
     x  = np.linspace(0, len(height[i]),len(height[i]))
     plt.plot(x, height[i])
+
+plt.xlabel('Frame Number')
+plt.ylabel('Height (m)')
 
 plt.show()
 

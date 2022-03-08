@@ -8,6 +8,25 @@ import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import pandas as pd
 import pickle
+#from reading_madis import test_read
+
+import gzip
+import typing
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+from netCDF4 import Dataset, chartostring
+
+import matplotlib.pylab as pylab
+params = {'legend.fontsize': 'large',
+          'figure.figsize': (6, 6),
+         'axes.labelsize': 'x-large',
+         'axes.titlesize':'x-large',
+         'xtick.labelsize':'x-large',
+         'ytick.labelsize':'x-large'}
+pylab.rcParams.update(params)
+
 date =  '2021-10-24_12A'
 
 with open('cloud_height_'+date+'.pkl','rb') as f:
@@ -26,6 +45,10 @@ print(np.nanmax(height))
 
 x = height.flatten()
 y = speed.flatten()
+
+#y =2*y
+
+#y[y< 5] = None
 
 #x= x[0:640*480*40]
 #y= y[0:640*480*40]
@@ -46,7 +69,7 @@ spd = ax6.imshow(H.T, extent=extent, interpolation='nearest', origin='lower', cm
 divider = make_axes_locatable(ax6)
 cax6 = divider.append_axes('right', size='5%', pad=0.05)
 fig6.colorbar(spd, cax=cax6, orientation='vertical')
-ax6.set_ylabel('Height (m)')
+ax6.set_ylabel('Altitude (m)')
 ax6.set_xlabel('Speed (m/s)')
 
 spd = y[idx]
@@ -56,7 +79,7 @@ idx3 = (~np.isnan(alt+spd))
 
 print(alt[idx3])
 
-numbins = 200
+numbins = 100
     
 df = pd.DataFrame({'altitude': alt[idx3], 'speed':spd[idx3]})
 print(df.head)
@@ -66,7 +89,7 @@ altitude = df.groupby(bins)['speed'].median()
 count  = df.groupby(bins)['altitude'].count().rename('Count')
 df2 = pd.concat([altitude, count], axis=1)
     
-df2.loc[df2.Count < 400*27, 'speed']  = None
+df2.loc[df2.Count < 400*29, 'speed']  = None
 print('Im here')
 print(df2.head())
 df3 = df2
@@ -84,8 +107,62 @@ for i in range(0, len(df3.iloc[:,0]), 1):
     p = minalt + ((2*i+1)*sizeofbin/2)
     alt_bins.append(p)
 
-ax6.plot(df3.iloc[:,0], alt_bins, color='k', label='Median')
+
+
+print('length', len(df3.iloc[:,0]))
+
+
+
+test_file = Path("20211024_1200.gz")
+airports = np.array(["EGLL", "EGSS", "EGKK", "EGMC", "EGGW", "EGMC"])
+
+def test_read(
+    filename: Path,
+    extract_keys: typing.List[str] = [
+        "profileAirport",
+        "profileTime",
+        "altitude",
+        "windDir",
+        "windSpeed",
+    ],
+) -> typing.Dict[str, np.ndarray]:
+    output = {}
+    with gzip.open(filename) as gz:
+        with Dataset("dummy", mode="r", memory=gz.read()) as ncdf:
+            print(ncdf.variables.keys())
+            for key in extract_keys:
+                tmp = ncdf.variables[key][:]
+                if tmp.dtype.str.startswith("|S"):
+                    tmp = chartostring(tmp)
+                output[key] = tmp
+    return output
+
+
+data = test_read(test_file)
+
+airport_idx = np.array([code in airports for code in data["profileAirport"]])
+print(airport_idx.sum())
+data_airports = {key: value[airport_idx] for key, value in data.items()}
+
+for airport, alt, speed in zip(
+    data_airports["profileAirport"],
+    data_airports["altitude"],
+    data_airports["windSpeed"],
+):
+    print(airport)
+    #color = 'y'
+    if airport == 'EGKK':
+        label = 'Gatwick'
+        color = 'y'
+    if airport == 'EGLL':
+        label = 'Heathrow'
+        color = 'm'
+    ax6.plot(speed[3:17], alt[3:17], label=label, color = color, linewidth= 2)
+ax6.plot(df3.iloc[:,0][0: 80], alt_bins[0: 80], color='k', label='Median data', linewidth = 2.5)
 ax6.legend()
+ax6.set_title("Cloud speed")
+plt.show()
+
 plt.show()
 
 #_____________________________________________________________-
@@ -148,36 +225,5 @@ plt.show()
 #     alt_bins.append(p)
 
 # ax6.plot(alt_bins,df3.iloc[:,0], color='k', label='Weighted average')
-
-# plt.show()
-
-fig5, ax5 = plt.subplots(1,1)
-n, bins, patches = ax5.hist(updraft*5, 1000, facecolor='g', alpha=0.75)
-
-
-from scipy.stats import norm
-from scipy.stats import normpdf 
-import matplotlib.mlab as mlab
-
-idx = (~np.isnan(updraft))
-
-# best fit of data
-(mu, sigma) = norm.fit(updraft[idx]*5)
-
-# the histogram of the data
-#n, bins, patches = plt.hist(datos, 60, normed=1, facecolor='green', alpha=0.75)
-
-# add a 'best fit' line
-y = mlab.normpdf( bins, mu, sigma)
-sx5.plot(bins, y, 'r--', linewidth=2)
-
-
-ax5.set_xlabel('Change in height (m)')
-ax5.set_ylabel('Number of pixels')
-#plt.xlim(-20, 20)
-plt.show()
-
-#ax6.set_title('histogram2d')
-#ax6.grid()
 
 
