@@ -6,7 +6,6 @@ finds optical flow and depth map for each frame
 
 import numpy as np
 import cv2 as cv
-from bearings import rotation_matrix, translation_vector, baseline_dist
 from mask2 import mask_C1, mask_C3
 from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -15,7 +14,10 @@ import pickle
 import ptlflow
 from ptlflow.utils import flow_utils
 from ptlflow.utils.io_adapter import IOAdapter
-import pandas  as pd
+import pandas as pd
+
+def resize(img):
+    return cv.resize(img,(640,480),fx=0,fy=0, interpolation = cv.INTER_CUBIC)
 
 #fundamental_matrix = np.loadtxt(r'matrices/fundamental_matrix.csv', delimiter = ',')
 ##essential_matrix = np.loadtxt(r'matrices/essential_matrix.csv', delimiter = ',')
@@ -71,27 +73,40 @@ model = ptlflow.get_model('flownet2', pretrained_ckpt='things') #other models ar
 
 #Set disparity parameters
 #Note: disparity range is tuned according to specific parameters obtained through trial and error.
-win_size = 8
+win_size = 11
 min_disp = 0
-max_disp = 7
+max_disp = 4
 num_disp = 16*max_disp - 16*min_disp # Needs to be divisible by 16
 
 #Create Block matching object.
 stereo = cv.StereoSGBM_create(minDisparity= min_disp,
  numDisparities = num_disp,
- blockSize = 9,
+ blockSize = 11,
  uniquenessRatio = 13,
- speckleWindowSize = 5,
- speckleRange = 14,
- disp12MaxDiff = 7,
+ speckleWindowSize = 176,
+ speckleRange = 3,
+ disp12MaxDiff = 6,
  P1 = 8*3*win_size**2,
  P2 =32*3*win_size**2)
 
 #It is based on Gunner Farneback's algorithm which is explained in "Two-Frame Motion Estimation Based on Polynomial Expansion" by Gunner Farneback in 2003.
-date = '2021-10-24_12A'
-vidcapR = cv.VideoCapture('Videos/lowres_C1_'+ date+'.mp4')
-vidcapL = cv.VideoCapture('Videos/C3_'+ date+'.mp4')
-cap = cv.VideoCapture('Videos/C3_'+date+'.mp4')
+# date = '2021-10-24_12A'
+# vidcapR = cv.VideoCapture('Videos/lowres_C1_'+ date+'.mp4')
+# vidcapL = cv.VideoCapture('Videos/C3_'+ date+'.mp4')
+# cap = cv.VideoCapture('Videos/C3_'+date+'.mp4')
+
+year = 2021
+month = 10
+day = 24
+hour = 12
+date = f'{year}-{month}-{day}_{hour}'
+prefix_left = 'tl4'
+prefix_right = 'tl'
+fp = "C:/Users/kathe/OneDrive - Imperial College London/MSci Project/Videos/"
+vidcapR = cv.VideoCapture(fp+f'{prefix_right}_{year}-{month}-{day}_{hour}A.mp4')
+vidcapL = cv.VideoCapture(fp+f'{prefix_left}_{year}-{month}-{day}_{hour}A.mp4')
+cap = cv.VideoCapture(fp+f'{prefix_left}_{year}-{month}-{day}_{hour}A.mp4')
+
 
 #cap2 = cv.VideoCapture('depth_10_24_12A.mp4')
 ret, frame1 = cap.read()
@@ -99,7 +114,8 @@ ret, frame1 = cap.read()
 backSub = cv.createBackgroundSubtractorKNN()
 #backSub = cv.createBackgroundSubtractorMOG2(detectShadows= True) #default is True, not sure which one to choose
 
-success, imgR = vidcapR.read()
+success, imgR_large = vidcapR.read()
+imgR = resize(imgR_large)
 success2, imgL = vidcapL.read()
 
 prvsR1 = imgR
@@ -122,8 +138,9 @@ cloud_updraft=[]
 count  = 0
 while(1):
     ret, frame2 = cap.read()
-    success, imgR = vidcapR.read()
-    imgRR =imgR
+    success, imgR_large = vidcapR.read()
+    imgR = resize(imgR_large)
+    imgRR = imgR
     imgLL = imgL
     success2, imgL = vidcapL.read()
     #ret2, img2 = cap2.read()
@@ -362,20 +379,20 @@ while(1):
 
     #plt.show()
     #plot
-    fig, (x,ax) = plt.subplots(1,2, sharex= True, sharey= True)
-    im = cv.cvtColor(rimgL, cv.COLOR_RGB2BGR)
-    x.imshow(im)
-    x.set_xlabel('Left camera')
+    # fig, (x,ax) = plt.subplots(1,2, sharex= True, sharey= True)
+    # im = cv.cvtColor(rimgL, cv.COLOR_RGB2BGR)
+    # x.imshow(im)
+    # x.set_xlabel('Left camera')
 
-    ax.set_xlabel('Heights (m)')
-    disp = ax.imshow(z,'coolwarm', vmin = 800, vmax = 8000)
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes('right', size='5%', pad=0.05)
-    fig.colorbar(disp, cax=cax, orientation='vertical')
+    # ax.set_xlabel('Heights (m)')
+    # disp = ax.imshow(z,'coolwarm', vmin = 800, vmax = 8000)
+    # divider = make_axes_locatable(ax)
+    # cax = divider.append_axes('right', size='5%', pad=0.05)
+    # fig.colorbar(disp, cax=cax, orientation='vertical')
     counting = str(count)
     counting.zfill(5)
-    file_name = 'gif_plots/heights' + counting + '.png'
-    fig.savefig(file_name, format='png')
+    #file_name = 'gif_plots/heights' + counting + '.png'
+    #fig.savefig(file_name, format='png')
     #plt.show()
 
     #fig5, ax5 = plt.subplots(1,1)
