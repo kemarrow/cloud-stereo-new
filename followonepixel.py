@@ -106,10 +106,10 @@ theta_vertical = vertical_fov/h #degree/pixel
 biglist = []
 bigcounts =  []
 
-for x in range(240, 244):
+for x in range(112, 640):
     print('changing x')
     p = x
-    for y in range(120, 130):
+    for y in range(0, 480):
         q=y
         count=0
         heightpix =[]
@@ -240,7 +240,6 @@ for x in range(240, 244):
             #z = cv.bitwise_and(z, z, mask=disp_mask)
             #z[z==disp_mask]=None
 
-
             heightpix.append(z[y, x])
             if x<112 or y<0 or x> 479 or y> 639 or math.isnan(z[y,x]):
                 biglist.append(heightpix)
@@ -282,10 +281,10 @@ for x in range(240, 244):
 #np.savetxt('data/cloud_speed_'+date+'.csv', cloud_speed , delimiter=',', fmt='%s')
 #np.savetxt('data/cloud_updraft_'+date+'.csv', cloud_updraft , delimiter=',', fmt='%s')
 
-with open('data/heightpix_'+date+'2.pkl','wb') as f:
+with open('data/heightpix_'+date+'big.pkl','wb') as f:
     pickle.dump(biglist, f)
 
-with open('data/framecount_'+date+'2.pkl','wb') as f:
+with open('data/framecount_'+date+'big.pkl','wb') as f:
     pickle.dump(bigcounts, f)
 
 #np.savetxt('data/height1pix_'+date+'-'+x1+'-'+y1+'.csv',  , delimiter=',', fmt='%s')
