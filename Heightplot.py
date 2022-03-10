@@ -306,34 +306,24 @@ while(1):
     z1 = cv.bitwise_and(z1, z1, mask=disp_mask1)
     z1[z1==disp_mask1]=None
     #change in depth between 2 frames
-    delta_depths =[]
-    for  r, valuex in enumerate(depths):
-        for  i, value in enumerate(valuex):
-            #print(flow[r,i,0])
-            y = r+round(flow[r,i,0])
-            x = i+round(flow[r,i,1])
-            if x<0 or y<0 or x> 639 or y>  479:
-                delta_depth = 50000#depths[r,i] - depths1[r,i]
-                delta_depths.append(delta_depth)
-            else:
-                delta_depth = depths[y, x] - depths1[r,i]
-                delta_depths.append(delta_depth)
-    delta_depths=np.reshape(delta_depths,(480,640))
+    #creating grids 
+    grid1 = np.stack(np.meshgrid(np.arange(480), np.arange( 640))).swapaxes(0, -1)
+    grid1= np.round(grid1).astype(int)
+    grid = grid1 + flow
+    grid = np.round(grid1).astype(int)
+    
+    #creating empty arrays
+    delta_depths = np.empty((480,640))
+    delta_depths[:]=np.nan
+    delta_heights = np.empty((480,640))
+    delta_heights[:]=np.nan
 
-    #change in height between 2 frames
-    delta_heights = []
-    for  p, valuehx in enumerate(z):
-        for q, valueh in enumerate(valuehx):
-            #print(flow[r,i,0])
-            y = p+round(flow[p,q,0])
-            x = q+round(flow[p,q,1])
-            if x<0 or y<0 or x> 639 or y> 479:
-                delta_height = 50000#depths[r,i] - depths1[r,i]
-                delta_heights.append(delta_height)
-            else:
-                delta_height = z[y, x] - z1[p,q]
-                delta_heights.append(delta_height)
-    delta_heights=np.reshape(delta_heights,(480,640))
+    #filtering pixels which move outside the image frame
+    condition = (grid[:,:,1]>639) | (grid[:, :,0]<0) |(grid[:,:, 0]>479)| (grid[:,:, 1]<0)
+    condition1 = (grid1[:,:,1]>639) | (grid1[:, :,0]<0) |(grid1[:,:, 0]>479)| (grid1[:,:, 1]<0)
+    #change in depth between 2 frames
+    delta_depths[~condition] = depths[grid[~condition][:,0], grid[~condition][:,1]] - depths1[grid1[~condition1][:,0], grid1[~condition1][:,1]]    
+    delta_heights[~condition] = z[grid[~condition][:,0], grid[~condition][:,1]] - z1[grid1[~condition1][:,0], grid1[~condition1][:,1]]
 
 
         #set non physical changes to none
