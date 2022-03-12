@@ -5,8 +5,6 @@ Plots histogram of the change in height frame to frame
 """
 import matplotlib.pyplot as plt
 import numpy as np
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import pandas as pd
 import pickle
 import gzip
 import typing
@@ -17,9 +15,9 @@ from scipy.stats import chisquare
 
 #import matplotlib.mlab as mlab
 from scipy.optimize import curve_fit
-from netCDF4 import Dataset, chartostring
+from scipy.stats import chisquare
 
-date =  '2021-10-24_12A'
+date =  '2021-10-24_12'
 
 with open('cloud_height_'+date+'.pkl','rb') as f:
     height = pickle.load(f)
@@ -39,8 +37,6 @@ with open('cloud_depth_'+date+'.pkl','rb') as f:
 x = height.flatten()
 y = speed.flatten()
 
-
-
 #x= x[0:640*480*40]
 #y= y[0:640*480*40]
 
@@ -49,9 +45,9 @@ def gaussian(x, A, mu, sigma, c):
     return A*(1 / (np.sqrt(2 * np.pi)*sigma) *
             np.exp(-(x - mu) ** 2 / (2 * sigma ** 2))) + c
 
-def Voigt(x, x0, y0, a, sigma, gamma):
-    #sigma = alpha / np.sqrt(2 * np.log(2))
-    return y0 + a * np.real(wofz((x - x0 + 1j*gamma)/sigma/np.sqrt(2))) / sigma /np.sqrt(2*np.pi)
+# def Voigt(x, x0, y0, a, sigma, gamma):
+#     #sigma = alpha / np.sqrt(2 * np.log(2))
+#     return y0 + a * np.real(wofz((x - x0 + 1j*gamma)/sigma/np.sqrt(2))) / sigma /np.sqrt(2*np.pi)
 
 def lorentzian( x, a, x0, gam , c):
     return a * gam**2 / ( gam**2 + ( x - x0 )**2) + c
@@ -83,7 +79,7 @@ ax5.ticklabel_format(axis="y", style="sci", scilimits=(0,0))
 #ax5.set_title('Change in height from frame to frame')
 plt.xlim(-500, 500)
 plt.legend()
-print("arameters: ")
+print("parameters: ")
 print('Amp :',p[0],'centre :', p[1],'gam :', p[2])
 print("Error: ")
 print(np.sqrt(np.diag(cov)))
@@ -92,31 +88,30 @@ chi = chisquare(n, lorentzian(bins1, *p))
 print(chi)
 plt.show()
 
-
-fig5, ax5 = plt.subplots(1,1)
-
-
-n, bins, patches = ax5.hist(y, 1000, alpha=0.75, label='Data')
-idx = (~np.isnan(y))
-bins1 = np.linspace(-1000, 1000, 1001)
+chi = chisquare(n, lorentzian(bins1, *p))
 
 
-#ax5.plot(bins, lorentzian(bins1, *p), label='Lorentzian fit, HWHM =' +str(round(abs(p[2]), 2)), linewidth =3)
-ax5.set_xlabel('Speed (m/s)')
-ax5.set_ylabel('Number of pixels')
-#ax5.set_title('Change in height from frame to frame')
-#plt.xlim(-500, 500)
-plt.legend()
-# print("arameters: ")
-# print('Amp :',p[0],'centre :', p[1],'gam :', p[2])
-# print("Error: ")
-# print(np.sqrt(np.diag(cov)))
-plt.show()
+# fig5, ax5 = plt.subplots(1,1)
 
 
+# n, bins, patches = ax5.hist(y, 1000, alpha=0.75, label='Data')
+# idx = (~np.isnan(y))
+# bins1 = np.linspace(-1000, 1000, 1001)
 
 
-plt.show()
+# #ax5.plot(bins, lorentzian(bins1, *p), label='Lorentzian fit, HWHM =' +str(round(abs(p[2]), 2)), linewidth =3)
+# ax5.set_xlabel('Speed (m/s)')
+# ax5.set_ylabel('Number of pixels')
+# #ax5.set_title('Change in height from frame to frame')
+# #plt.xlim(-500, 500)
+# plt.legend()
+# # print("arameters: ")
+# # print('Amp :',p[0],'centre :', p[1],'gam :', p[2])
+# # print("Error: ")
+# # print(np.sqrt(np.diag(cov)))
+# plt.show()
 
 
 
+
+# plt.show()

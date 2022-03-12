@@ -55,8 +55,24 @@ mapRx, mapRy = cv.initUndistortRectifyMap(new_camera_matrixright, Distort_right,
 
 model = ptlflow.get_model('flownet2', pretrained_ckpt='things') #other models are here: https://ptlflow.readthedocs.io/en/latest/models/models_list.html
 
-#Set disparity parameters
-#Note: disparity range is tuned according to specific parameters obtained through trial and error.
+# #Set disparity parameters
+# #Note: disparity range is tuned according to specific parameters obtained through trial and error.
+# win_size = 11
+# min_disp = 0
+# max_disp = 4
+# num_disp = 16*max_disp - 16*min_disp # Needs to be divisible by 16
+
+# #Create Block matching object.
+# stereo = cv.StereoSGBM_create(minDisparity= min_disp,
+#  numDisparities = num_disp,
+#  blockSize = 11,
+#  uniquenessRatio = 13,
+#  speckleWindowSize = 176,
+#  speckleRange = 3,
+#  disp12MaxDiff = 6,
+#  P1 = 8*3*win_size**2,
+#  P2 =32*3*win_size**2)
+
 win_size = 8
 min_disp = 0
 max_disp = 7
@@ -115,7 +131,7 @@ while(1):
     if not ret:
         print('No frames grabbed!')
         break
-    
+
     imgR = cv.undistort(imgR, CamM_right, Distort_right, None, new_camera_matrixright)
     imgL = cv.undistort(imgL, CamM_left, Distort_left, None, new_camera_matrixleft)
 
@@ -154,7 +170,7 @@ while(1):
     # but it should always store the optical flow prediction in a key called 'flows'.
     flows = predictions['flows']
     flow  =  flows.detach().numpy()
-   
+
     #flows will be a 5D tensor BNCHW.
     # This example should print a shape (1, 1, 2, H, W).
     # Create an RGB representation of the flow to show it on the screen
@@ -171,10 +187,10 @@ while(1):
     flow  = np.swapaxes(flow, 1, 2)
 
     # OpenCV uses BGR format
-  
+
     #rg_ratio = imgL[:, :, 1]/imgL[:, :, 2]
     #new_mask =  mask_C3[:,:,0] & (rg_ratio<1.1) & (rg_ratio>0.93)#maskL & thresh1
-    
+
     #rg_ratio1 = prvsL1[:, :, 1]/prvsL1[:, :, 2]
     #new_mask1 =  maskcomb & (rg_ratio1<1.1) & (rg_ratio1>0.93)
 
@@ -182,7 +198,7 @@ while(1):
     #flow_bgr_npym = cv.bitwise_and(flow_bgr_npy, flow_bgr_npy, mask=new_mask)
 
 
-    #Farneback algorithm 
+    #Farneback algorithm
     #next = cv.cvtColor(frame2, cv.COLOR_BGR2GRAY)
     #flow = cv.calcOpticalFlowFarneback(prvs, next, None, 0.5, 3, 15, 3, 5, 1.2, 0)
     #print(flow)
@@ -190,13 +206,13 @@ while(1):
     #hsv[..., 0] = ang*180/np.pi/2
     #hsv[..., 2] = cv.normalize(mag, None, 0, 255, cv.NORM_MINMAX)
     #bgr = cv.cvtColor(hsv, cv.COLOR_HSV2BGR)
-    
-    
+
+
     #bgr = cv.bitwise_and(bgr, bgr, mask=maskcomb)
-    
+
     #bgr = backSub.apply(z)
-    
-    
+
+
     print(count)
     count +=1
     #imgR = cv.bitwise_and(imgR, imgR, mask=mask_C1[:, :, 0])
@@ -205,12 +221,12 @@ while(1):
     #prvsR1  = cv.bitwise_and(prvsR1, prvsR1, mask=mask_C1[:, :, 0])
     #prvsL1  = cv.bitwise_and(prvsL1, prvsL1, mask=mask_C3[:, :, 0])
 
-    
+
 
         #Undistort images
-    
-                
-       
+
+
+
 
     #maskL = backSub.apply(imgL)
     #maskL1 = backSub.apply(prvsL1)
@@ -228,14 +244,14 @@ while(1):
     disparity_map2 = stereo.compute(rimgL, rimgR).astype(np.float32)
     disparity_map1 = stereo.compute(rimgL1, rimgR1).astype(np.float32)
 
-         #combine mask1 and mask3 and rectify 
+         #combine mask1 and mask3 and rectify
     maskcomb =  mask_C1[:,:,0] & mask_C3[:,:,0]
     rg_ratio = imgL[:, :, 1]/imgL[:, :, 2]
     new_mask =  maskcomb & (rg_ratio<1.1) & (rg_ratio>0.93)#maskL & thresh1
-    
+
     rg_ratio1 = prvsL1[:, :, 1]/prvsL1[:, :, 2]
     new_mask1 =  maskcomb & (rg_ratio1<1.1) & (rg_ratio1>0.93) #maskL1 &thresh1
-    
+
 
     buildmask = cv.remap(maskcomb, mapLx, mapLy,
                             interpolation=cv.INTER_NEAREST,
@@ -246,16 +262,16 @@ while(1):
                             interpolation=cv.INTER_NEAREST,
                             borderMode=cv.BORDER_CONSTANT,
                             borderValue=(0, 0, 0, 0))
-    
+
     disp_mask1 = cv.remap(new_mask1, mapLx, mapLy,
                             interpolation=cv.INTER_NEAREST,
                             borderMode=cv.BORDER_CONSTANT,
                             borderValue=(0, 0, 0, 0))
 
-    
+
         #convert to depth
-    im3d = cv.reprojectImageTo3D(disparity_map2/16, Q, handleMissingValues = True)
-    im3d1 = cv.reprojectImageTo3D(disparity_map1/16, Q, handleMissingValues = True)
+    im3d = cv.reprojectImageTo3D((disparity_map2-32)/16, Q, handleMissingValues = True)
+    im3d1 = cv.reprojectImageTo3D((disparity_map1-32)/16, Q, handleMissingValues = True)
 
     im3d = cv.bitwise_and(im3d, im3d, mask=disp_mask)
     im3d1 = cv.bitwise_and(im3d1, im3d1, mask=disp_mask1)
@@ -269,7 +285,7 @@ while(1):
     im3d1[im3d1 == -np.inf] = None
     im3d1[im3d1 > 9000] = None
 
-    tilt = 23 * np.pi/180
+    tilt = 23.7 * np.pi/180
     height_camera = 46
 
     depths = np.sqrt(im3d[:,:,0]**2 + im3d[:,:,1]**2 + im3d[:,:,2]**2)
@@ -279,7 +295,7 @@ while(1):
     z = depths * np.sin(angle + tilt) + height_camera
     z = cv.bitwise_and(z, z, mask=disp_mask)
     z[z==disp_mask]=None
-    
+
 
     depths1 = np.sqrt(im3d1[:,:,0]**2 + im3d1[:,:,1]**2 + im3d1[:,:,2]**2)
     depths1 = cv.bitwise_and(depths1, depths1, mask=disp_mask1)
@@ -290,25 +306,25 @@ while(1):
     z1[z1==disp_mask1]=None
     #change in depth between 2 frames
     #new bit start______________________________
-    #creating grids 
+    #creating grids
 
     grid1 = np.stack(np.meshgrid(np.arange(480), np.arange( 640))).swapaxes(0, -1)
     grid = grid1 + flow
     grid = np.round(grid).astype(int)
-    
+
     #creating empty arrays
     delta_depths = np.empty((480,640))
     delta_depths[:]=np.nan
     delta_heights = np.empty((480,640))
     delta_heights[:]=np.nan
-    
+
     # #filtering pixels which move outside the image frame
     condition = (grid[:,:,1]>639) | (grid[:, :,0]<0) |(grid[:,:, 0]>479)| (grid[:,:, 1]<0)
     condition1 = (grid1[:,:,1]>639) | (grid1[:, :,0]<0) |(grid1[:,:, 0]>479)| (grid1[:,:, 1]<0)
 
 
     #change in height and depths between 2 frames
-    delta_depths[~condition] = depths[grid[~condition][:,0], grid[~condition][:,1]] - depths1[grid1[~condition][:,0], grid1[~condition][:,1]]    
+    delta_depths[~condition] = depths[grid[~condition][:,0], grid[~condition][:,1]] - depths1[grid1[~condition][:,0], grid1[~condition][:,1]]
     delta_heights[~condition] = z[grid[~condition][:,0], grid[~condition][:,1]] - z1[grid1[~condition][:,0], grid1[~condition][:,1]]
 
 
@@ -336,7 +352,7 @@ while(1):
 
     updraft  = delta_heights* 1/5
     updraft = cv.bitwise_and(updraft, updraft, mask=disp_mask)
-    updraft[updraft == disp_mask] = None
+    updraft[updraft == 0] = None
     #updraft[updraft == 0] = None
     updraft[updraft > 5000] = None
     #speed[speed1D ==0] = 0
@@ -359,7 +375,7 @@ while(1):
     cax = divider.append_axes('right', size='5%', pad=0.05)
     fig.colorbar(disp, cax=cax, orientation='vertical')
     counting = str(count)
-    
+
     file_name = 'gif_plots/heights' + counting.zfill(5) + '.png'
     fig.savefig(file_name, format='png')
     #plt.show()
@@ -372,7 +388,7 @@ while(1):
     #xpos, ypos = np.meshgrid((xedges[:-1] + xedges[1:])/2, (yedges[:-1] +yedges[1:])/2, indexing="ij")
     #xpos = xpos.ravel()
     #ypos = ypos.ravel()
-    #zpos = 
+    #zpos =
     # Construct arrays with the dimensions for the 16 bars.
     #dx = dy = 0.5 * np.ones_like(zpos)
     #dz = hist.ravel()
@@ -380,8 +396,8 @@ while(1):
     #plt.xlabel("Cloud height (m) ")
     ##plt.ylabel("Cloud speed  (m/s) ")
     ###plt.show()
-  
-    
+
+
 
     #cv.imshow('frame2', bgr)
     #cv.imshow('frame1',frame2)
@@ -390,7 +406,7 @@ while(1):
 
     #plot the optical flow on the image
     #fig2, ax2 = plt.subplots(1,1)
-    #ax2.imshow(img) 
+    #ax2.imshow(img)
     #x,y = np.meshgrid(np.linspace(0,640,640),np.linspace(0,480,480))
     #ax2.quiver(x, y, u, v, color  = 'red')
     #plt.show()

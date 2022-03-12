@@ -6,7 +6,6 @@ finds optical flow and depth map for each frame
 
 import numpy as np
 import cv2 as cv
-#from bearings import rotation_matrix, translation_vector, baseline_dist
 from mask2 import mask_C1, mask_C3
 from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -90,9 +89,18 @@ stereo = cv.StereoSGBM_create(minDisparity= min_disp,
 
 #It is based on Gunner Farneback's algorithm which is explained in "Two-Frame Motion Estimation Based on Polynomial Expansion" by Gunner Farneback in 2003.
 date = '2021-10-24_12A'
-vidcapR = cv.VideoCapture('Videos/lowres_C1_'+ date+'.mp4')
-vidcapL = cv.VideoCapture('Videos/C3_'+ date+'.mp4')
-cap = cv.VideoCapture('Videos/C3_'+date+'.mp4')
+# vidcapR = cv.VideoCapture('Videos/lowres_C1_'+ date+'.mp4')
+# vidcapL = cv.VideoCapture('Videos/C3_'+ date+'.mp4')
+# cap = cv.VideoCapture('Videos/C3_'+date+'.mp4')
+
+prefix_right = 'tl'
+prefix_left = 'tl4'
+vidfolder = "C:/Users/kathe/OneDrive - Imperial College London/MSci Project/Videos"
+dtime = '2021-10-24'
+hour = 12
+vidcapR = cv.VideoCapture(f'{vidfolder}/{prefix_right}_{dtime}_{hour:0>2}A.mp4')
+vidcapL = cv.VideoCapture(f'{vidfolder}/{prefix_left}_{dtime}_{hour:0>2}A.mp4')
+cap = cv.VideoCapture(f'{vidfolder}/{prefix_left}_{dtime}_{hour:0>2}A.mp4')
 
 #cap2 = cv.VideoCapture('depth_10_24_12A.mp4')
 ret, frame1 = cap.read()
@@ -100,7 +108,12 @@ ret, frame1 = cap.read()
 backSub = cv.createBackgroundSubtractorKNN()
 #backSub = cv.createBackgroundSubtractorMOG2(detectShadows= True) #default is True, not sure which one to choose
 
-success, imgR = vidcapR.read()
+# for if you need to resize the camera 1 video to 640x480
+success, imgRLarge = vidcapR.read()
+imgR = cv.resize(imgRLarge,(640,480),fx=0,fy=0, interpolation = cv.INTER_CUBIC)
+
+# success, imgR = vidcapR.read()
+
 success2, imgL = vidcapL.read()
 
 prvsR1 = imgR
@@ -120,14 +133,15 @@ theta_vertical = vertical_fov/h #degree/pixel
 cloud_speed= []
 cloud_height=[]
 cloud_updraft=[]
-count  = 0
+count = 0
 while(1):
     ret, frame2 = cap.read()
-    success, imgR = vidcapR.read()
+    success, imgRLarge = vidcapR.read()
+    imgR = cv.resize(imgRLarge,(640,480),fx=0,fy=0, interpolation = cv.INTER_CUBIC)
     imgRR =imgR
     imgLL = imgL
     success2, imgL = vidcapL.read()
-    
+
     if not ret:
         print('No frames grabbed!')
         break
@@ -174,7 +188,7 @@ while(1):
     # but it should always store the optical flow prediction in a key called 'flows'.
     flows = predictions['flows']
     flow  =  flows.detach().numpy()
-   
+
     #flows will be a 5D tensor BNCHW.
     # This example should print a shape (1, 1, 2, H, W).
     # Create an RGB representation of the flow to show it on the screen
@@ -191,10 +205,10 @@ while(1):
     flow  = np.swapaxes(flow, 1, 2)
 
     # OpenCV uses BGR format
-  
+
     #rg_ratio = imgL[:, :, 1]/imgL[:, :, 2]
     #new_mask =  mask_C3[:,:,0] & (rg_ratio<1.1) & (rg_ratio>0.93)#maskL & thresh1
-    
+
     #rg_ratio1 = prvsL1[:, :, 1]/prvsL1[:, :, 2]
     #new_mask1 =  maskcomb & (rg_ratio1<1.1) & (rg_ratio1>0.93)
 
@@ -202,7 +216,7 @@ while(1):
     #flow_bgr_npym = cv.bitwise_and(flow_bgr_npy, flow_bgr_npy, mask=new_mask)
 
 
-    #Farneback algorithm 
+    #Farneback algorithm
     #next = cv.cvtColor(frame2, cv.COLOR_BGR2GRAY)
     #flow = cv.calcOpticalFlowFarneback(prvs, next, None, 0.5, 3, 15, 3, 5, 1.2, 0)
     #print(flow)
@@ -210,16 +224,16 @@ while(1):
     #hsv[..., 0] = ang*180/np.pi/2
     #hsv[..., 2] = cv.normalize(mag, None, 0, 255, cv.NORM_MINMAX)
     #bgr = cv.cvtColor(hsv, cv.COLOR_HSV2BGR)
-    
-    
+
+
     #bgr = cv.bitwise_and(bgr, bgr, mask=maskcomb)
-    
+
     #bgr = backSub.apply(z)
     # bgr = cv.remap(bgr, mapLx, mapLy,
     #                         interpolation=cv.INTER_NEAREST,
     #                         borderMode=cv.BORDER_CONSTANT,
     #                         borderValue=(0, 0, 0, 0))
-    
+
     print(count)
     count +=1
     #imgR = cv.bitwise_and(imgR, imgR, mask=mask_C1[:, :, 0])
@@ -228,12 +242,12 @@ while(1):
     #prvsR1  = cv.bitwise_and(prvsR1, prvsR1, mask=mask_C1[:, :, 0])
     #prvsL1  = cv.bitwise_and(prvsL1, prvsL1, mask=mask_C3[:, :, 0])
 
-    
+
 
         #Undistort images
-    
-                
-       
+
+
+
 
     #maskL = backSub.apply(imgL)
     #maskL1 = backSub.apply(prvsL1)
@@ -251,14 +265,14 @@ while(1):
     disparity_map2 = stereo.compute(rimgL, rimgR).astype(np.float32)
     disparity_map1 = stereo.compute(rimgL1, rimgR1).astype(np.float32)
 
-         #combine mask1 and mask3 and rectify 
+         #combine mask1 and mask3 and rectify
     maskcomb =  mask_C1[:,:,0] & mask_C3[:,:,0]
     rg_ratio = imgL[:, :, 1]/imgL[:, :, 2]
     new_mask =  maskcomb & (rg_ratio<1.1) & (rg_ratio>0.93)#maskL & thresh1
-    
+
     rg_ratio1 = prvsL1[:, :, 1]/prvsL1[:, :, 2]
     new_mask1 =  maskcomb & (rg_ratio1<1.1) & (rg_ratio1>0.93) #maskL1 &thresh1
-    
+
 
     buildmask = cv.remap(maskcomb, mapLx, mapLy,
                             interpolation=cv.INTER_NEAREST,
@@ -269,13 +283,13 @@ while(1):
                             interpolation=cv.INTER_NEAREST,
                             borderMode=cv.BORDER_CONSTANT,
                             borderValue=(0, 0, 0, 0))
-    
+
     disp_mask1 = cv.remap(new_mask1, mapLx, mapLy,
                             interpolation=cv.INTER_NEAREST,
                             borderMode=cv.BORDER_CONSTANT,
                             borderValue=(0, 0, 0, 0))
 
-    
+
         #convert to depth
     im3d = cv.reprojectImageTo3D(disparity_map2/16, Q, handleMissingValues = True)
     im3d1 = cv.reprojectImageTo3D(disparity_map1/16, Q, handleMissingValues = True)
@@ -302,7 +316,7 @@ while(1):
     z = depths * np.sin(angle + tilt) + height_camera
     z = cv.bitwise_and(z, z, mask=disp_mask)
     z[z==disp_mask]=None
-    
+
 
     depths1 = np.sqrt(im3d1[:,:,0]**2 + im3d1[:,:,1]**2 + im3d1[:,:,2]**2)
     depths1 = cv.bitwise_and(depths1, depths1, mask=disp_mask1)
@@ -313,24 +327,24 @@ while(1):
     z1[z1==disp_mask1]=None
     #change in depth between 2 frames
     #new bit start______________________________
-    #creating grids 
+    #creating grids
 
     grid1 = np.stack(np.meshgrid(np.arange(480), np.arange( 640))).swapaxes(0, -1)
     grid = grid1 + flow
     grid = np.round(grid).astype(int)
-    
+
     #creating empty arrays
     delta_depths = np.empty((480,640))
     delta_depths[:]=np.nan
     delta_heights = np.empty((480,640))
     delta_heights[:]=np.nan
-    
+
     # #filtering pixels which move outside the image frame
     condition = (grid[:,:,1]>639) | (grid[:, :,0]<0) |(grid[:,:, 0]>479)| (grid[:,:, 1]<0)
 
 
     #change in height and depths between 2 frames
-    delta_depths[~condition] = depths[grid[~condition][:,0], grid[~condition][:,1]] - depths1[grid1[~condition][:,0], grid1[~condition][:,1]]    
+    delta_depths[~condition] = depths[grid[~condition][:,0], grid[~condition][:,1]] - depths1[grid1[~condition][:,0], grid1[~condition][:,1]]
     delta_heights[~condition] = z[grid[~condition][:,0], grid[~condition][:,1]] - z1[grid1[~condition][:,0], grid1[~condition][:,1]]
 
     fig, ((ax1,ax2), (ax3,ax4))  = plt.subplots(2,2, sharex = True, sharey = True)
@@ -352,7 +366,7 @@ while(1):
     plt.show()
 
     fig, (ax1,ax2,ax3)  = plt.subplots(1,3, sharex = True, sharey = True)
-    
+
     img = cv.bitwise_and(rimgL, rimgL, mask=disp_mask)
     ax1.imshow(img)
     ax1.set_xlabel('Mask')
@@ -371,7 +385,7 @@ while(1):
     divider2 = make_axes_locatable(ax3)
     cax2 = divider2.append_axes('right', size='5%', pad=0.05)
     fig.colorbar(depth, cax=cax2, orientation='vertical')
-    
+
     plt.show()
 
 
@@ -419,16 +433,16 @@ while(1):
     dividerh = make_axes_locatable(ax3)
     cax3 = dividerh.append_axes('right', size='5%', pad=0.05)
     fig3.colorbar(spd, cax=cax3, orientation='vertical')
-    ax3.set_title(date) 
+    ax3.set_title(date)
     ax3.set_xlabel('speed')
 
     #fig4, ax4 = plt.subplots(1,1)
-    
+
     ax4.imshow(masked_left)
     upd = ax4.imshow(updraft, cmap = 'coolwarm')
     dividerh = make_axes_locatable(ax4)
     cax4 = dividerh.append_axes('right', size='5%', pad=0.05)
-    fig3.colorbar(upd, cax=cax4, orientation='vertical') 
+    fig3.colorbar(upd, cax=cax4, orientation='vertical')
     ax4.set_xlabel('updraft')
     img = cv.bitwise_and(rimgL, rimgL, mask=disp_mask)
     ax5.imshow(img)
@@ -443,7 +457,7 @@ while(1):
     cax = divider.append_axes('right', size='5%', pad=0.05)
     fig3.colorbar(disp, cax=cax, orientation='vertical')
     plt.show()
-    
+
     fig5, ax5 = plt.subplots(1,1)
     speed = speed.flatten()
     n, bins, patches = ax5.hist(speed, 2000, facecolor='g', alpha=0.75)
@@ -451,7 +465,7 @@ while(1):
 
     plt.show()
 
-    
+
     #plot
     fig, ax = plt.subplots(1,1)
     ax.set_xlabel('heights')
@@ -471,7 +485,7 @@ while(1):
     #xpos, ypos = np.meshgrid((xedges[:-1] + xedges[1:])/2, (yedges[:-1] +yedges[1:])/2, indexing="ij")
     #xpos = xpos.ravel()
     #ypos = ypos.ravel()
-    #zpos = 
+    #zpos =
     # Construct arrays with the dimensions for the 16 bars.
     #dx = dy = 0.5 * np.ones_like(zpos)
     #dz = hist.ravel()
@@ -479,12 +493,12 @@ while(1):
     #plt.xlabel("Cloud height (m) ")
     ##plt.ylabel("Cloud speed  (m/s) ")
     ###plt.show()
-  
+
     #heat map  of change in height vs height
     updraft_flat = updraft.flatten()
     xh = z.flatten()
     idxh = (~np.isnan(xh+updraft_flat))
-    
+
     fig7, (ax6, ax7) = plt.subplots(1,2)
     Hh, xedgesh, yedgesh = np.histogram2d(xh[idxh], updraft_flat[idxh], bins=(100, 100))
     extenth = [xedgesh[0], xedgesh[-1], yedgesh[0], yedgesh[-1]]
@@ -507,16 +521,16 @@ while(1):
     extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
     print(extent)
     print(np.shape(extent))
-    
+
     #sum_col= []
-    #for i in H: 
+    #for i in H:
         #appen
         #for j in i:
             #speed = (extent[4]  - extent[3])/100 * j  * H.T[i, j]
 
     print('shape', np.shape(H.T))
     spd = ax6.imshow(H.T, extent=extent, interpolation='nearest', origin='lower', cmap='coolwarm', aspect='auto')
-    
+
     divider = make_axes_locatable(ax6)
     cax6 = divider.append_axes('right', size='5%', pad=0.05)
     fig7.colorbar(spd, cax=cax6, orientation='vertical')
@@ -534,7 +548,7 @@ while(1):
 
     #plot the optical flow on the image
     #fig2, ax2 = plt.subplots(1,1)
-    #ax2.imshow(img) 
+    #ax2.imshow(img)
     #x,y = np.meshgrid(np.linspace(0,640,640),np.linspace(0,480,480))
     #ax2.quiver(x, y, u, v, color  = 'red')
     #plt.show()
