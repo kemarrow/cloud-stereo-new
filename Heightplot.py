@@ -6,6 +6,7 @@ finds optical flow and depth map for each frame
 
 import numpy as np
 import cv2 as cv
+from bearings import rotation_matrix, translation_vector, baseline_dist
 from mask2 import mask_C1, mask_C3
 from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -14,24 +15,7 @@ import pickle
 import ptlflow
 from ptlflow.utils import flow_utils
 from ptlflow.utils.io_adapter import IOAdapter
-import pandas as pd
-
-def resize(img):
-    return cv.resize(img,(640,480),fx=0,fy=0, interpolation = cv.INTER_CUBIC)
-
-#fundamental_matrix = np.loadtxt(r'matrices/fundamental_matrix.csv', delimiter = ',')
-##essential_matrix = np.loadtxt(r'matrices/essential_matrix.csv', delimiter = ',')
-#pose = np.loadtxt(r'matrices/pose[1].csv', delimiter = ',')
-#T = np.loadtxt(r'matrices/T.csv', delimiter = ',')
-# Rleft = np.loadtxt(r'matrices/Rleft.csv', delimiter = ',')
-# Rright = np.loadtxt(r'matrices/Rright.csv', delimiter = ',')
-# Pleft = np.loadtxt(r'matrices/Pleft.csv', delimiter = ',')
-# Pright = np.loadtxt(r'matrices/Pright.csv', delimiter = ',')
-# Q = np.loadtxt(r'matrices/Q.csv', delimiter = ',')
-# Hleft = np.loadtxt(r'matrices/Hleft.csv', delimiter = ',')
-# Hright = np.loadtxt(r'matrices/Hright.csv', delimiter = ',')
-# roi_left = np.loadtxt(r'matrices/roi_left.csv', delimiter = ',')
-# roi_right = np.loadtxt(r'matrices/roi_right.csv', delimiter = ',')
+import pandas  as pd
 
 stereo_cal = pickle.load( open( 'stereo_cal_mat.pkl', "rb" ) )
 
@@ -73,40 +57,27 @@ model = ptlflow.get_model('flownet2', pretrained_ckpt='things') #other models ar
 
 #Set disparity parameters
 #Note: disparity range is tuned according to specific parameters obtained through trial and error.
-win_size = 11
+win_size = 8
 min_disp = 0
-max_disp = 4
+max_disp = 7
 num_disp = 16*max_disp - 16*min_disp # Needs to be divisible by 16
 
 #Create Block matching object.
 stereo = cv.StereoSGBM_create(minDisparity= min_disp,
  numDisparities = num_disp,
- blockSize = 11,
+ blockSize = 9,
  uniquenessRatio = 13,
- speckleWindowSize = 176,
- speckleRange = 3,
- disp12MaxDiff = 6,
+ speckleWindowSize = 5,
+ speckleRange = 14,
+ disp12MaxDiff = 7,
  P1 = 8*3*win_size**2,
  P2 =32*3*win_size**2)
 
 #It is based on Gunner Farneback's algorithm which is explained in "Two-Frame Motion Estimation Based on Polynomial Expansion" by Gunner Farneback in 2003.
-# date = '2021-10-24_12A'
-# vidcapR = cv.VideoCapture('Videos/lowres_C1_'+ date+'.mp4')
-# vidcapL = cv.VideoCapture('Videos/C3_'+ date+'.mp4')
-# cap = cv.VideoCapture('Videos/C3_'+date+'.mp4')
-
-year = 2021
-month = 10
-day = 24
-hour = 12
-date = f'{year}-{month}-{day}_{hour}'
-prefix_left = 'tl4'
-prefix_right = 'tl'
-fp = "C:/Users/kathe/OneDrive - Imperial College London/MSci Project/Videos/"
-vidcapR = cv.VideoCapture(fp+f'{prefix_right}_{year}-{month}-{day}_{hour}A.mp4')
-vidcapL = cv.VideoCapture(fp+f'{prefix_left}_{year}-{month}-{day}_{hour}A.mp4')
-cap = cv.VideoCapture(fp+f'{prefix_left}_{year}-{month}-{day}_{hour}A.mp4')
-
+date = '2021-10-24_12A'
+vidcapR = cv.VideoCapture('Videos/lowres_C1_'+ date+'.mp4')
+vidcapL = cv.VideoCapture('Videos/C3_'+ date+'.mp4')
+cap = cv.VideoCapture('Videos/C3_'+date+'.mp4')
 
 #cap2 = cv.VideoCapture('depth_10_24_12A.mp4')
 ret, frame1 = cap.read()
@@ -114,8 +85,7 @@ ret, frame1 = cap.read()
 backSub = cv.createBackgroundSubtractorKNN()
 #backSub = cv.createBackgroundSubtractorMOG2(detectShadows= True) #default is True, not sure which one to choose
 
-success, imgR_large = vidcapR.read()
-imgR = resize(imgR_large)
+success, imgR = vidcapR.read()
 success2, imgL = vidcapL.read()
 
 prvsR1 = imgR
@@ -138,22 +108,41 @@ cloud_updraft=[]
 count  = 0
 while(1):
     ret, frame2 = cap.read()
-    success, imgR_large = vidcapR.read()
-    imgR = resize(imgR_large)
-    imgRR = imgR
+    success, imgR = vidcapR.read()
+    imgRR =imgR
     imgLL = imgL
     success2, imgL = vidcapL.read()
-    #ret2, img2 = cap2.read()
-    #img2 = cv.cvtColor(img2, cv.COLOR_BGR2GRAY)
     if not ret:
         print('No frames grabbed!')
         break
+    
+    imgR = cv.undistort(imgR, CamM_right, Distort_right, None, new_camera_matrixright)
+    imgL = cv.undistort(imgL, CamM_left, Distort_left, None, new_camera_matrixleft)
+
+        # remaps each image to the new map
+    rimgR = cv.remap(imgR, mapRx, mapRy,
+                            interpolation=cv.INTER_NEAREST,
+                            borderMode=cv.BORDER_CONSTANT,
+                            borderValue=(0, 0, 0, 0))
+    rimgL = cv.remap(imgL, mapLx, mapLy,
+                            interpolation=cv.INTER_NEAREST,
+                            borderMode=cv.BORDER_CONSTANT,
+                            borderValue=(0, 0, 0, 0))
+        #previous image mapping
+    rimgR1 = cv.remap(prvsR1 , mapRx, mapRy,
+                            interpolation=cv.INTER_NEAREST,
+                            borderMode=cv.BORDER_CONSTANT,
+                            borderValue=(0, 0, 0, 0))
+    rimgL1 = cv.remap(prvsL1 , mapLx, mapLy,
+                            interpolation=cv.INTER_NEAREST,
+                            borderMode=cv.BORDER_CONSTANT,
+                            borderValue=(0, 0, 0, 0))
 
     io_adapter = IOAdapter(model, prvsL1.shape[:2])
 
     # inputs is a dict {'images': torch.Tensor}
     # The tensor is 5D with a shape BNCHW. In this case, it will have the shape: (1, 2, 3, H, W)
-    inputs = io_adapter.prepare_inputs([prvsL1, imgL])
+    inputs = io_adapter.prepare_inputs([rimgL1, rimgL])
 
     # Forward the inputs through the model
     predictions = model(inputs)
@@ -206,10 +195,7 @@ while(1):
     #bgr = cv.bitwise_and(bgr, bgr, mask=maskcomb)
     
     #bgr = backSub.apply(z)
-    bgr = cv.remap(bgr, mapLx, mapLy,
-                            interpolation=cv.INTER_NEAREST,
-                            borderMode=cv.BORDER_CONSTANT,
-                            borderValue=(0, 0, 0, 0))
+    
     
     print(count)
     count +=1
@@ -222,27 +208,7 @@ while(1):
     
 
         #Undistort images
-    imgR = cv.undistort(imgR, CamM_right, Distort_right, None, new_camera_matrixright)
-    imgL = cv.undistort(imgL, CamM_left, Distort_left, None, new_camera_matrixleft)
-
-        # remaps each image to the new map
-    rimgR = cv.remap(imgR, mapRx, mapRy,
-                            interpolation=cv.INTER_NEAREST,
-                            borderMode=cv.BORDER_CONSTANT,
-                            borderValue=(0, 0, 0, 0))
-    rimgL = cv.remap(imgL, mapLx, mapLy,
-                            interpolation=cv.INTER_NEAREST,
-                            borderMode=cv.BORDER_CONSTANT,
-                            borderValue=(0, 0, 0, 0))
-        #previous image mapping
-    rimgR1 = cv.remap(prvsR1 , mapRx, mapRy,
-                            interpolation=cv.INTER_NEAREST,
-                            borderMode=cv.BORDER_CONSTANT,
-                            borderValue=(0, 0, 0, 0))
-    rimgL1 = cv.remap(prvsL1 , mapLx, mapLy,
-                            interpolation=cv.INTER_NEAREST,
-                            borderMode=cv.BORDER_CONSTANT,
-                            borderValue=(0, 0, 0, 0))
+    
                 
        
 
@@ -323,24 +289,27 @@ while(1):
     z1 = cv.bitwise_and(z1, z1, mask=disp_mask1)
     z1[z1==disp_mask1]=None
     #change in depth between 2 frames
+    #new bit start______________________________
     #creating grids 
+
     grid1 = np.stack(np.meshgrid(np.arange(480), np.arange( 640))).swapaxes(0, -1)
-    grid1= np.round(grid1).astype(int)
     grid = grid1 + flow
-    grid = np.round(grid1).astype(int)
+    grid = np.round(grid).astype(int)
     
     #creating empty arrays
     delta_depths = np.empty((480,640))
     delta_depths[:]=np.nan
     delta_heights = np.empty((480,640))
     delta_heights[:]=np.nan
-
-    #filtering pixels which move outside the image frame
+    
+    # #filtering pixels which move outside the image frame
     condition = (grid[:,:,1]>639) | (grid[:, :,0]<0) |(grid[:,:, 0]>479)| (grid[:,:, 1]<0)
     condition1 = (grid1[:,:,1]>639) | (grid1[:, :,0]<0) |(grid1[:,:, 0]>479)| (grid1[:,:, 1]<0)
-    #change in depth between 2 frames
-    delta_depths[~condition] = depths[grid[~condition][:,0], grid[~condition][:,1]] - depths1[grid1[~condition1][:,0], grid1[~condition1][:,1]]    
-    delta_heights[~condition] = z[grid[~condition][:,0], grid[~condition][:,1]] - z1[grid1[~condition1][:,0], grid1[~condition1][:,1]]
+
+
+    #change in height and depths between 2 frames
+    delta_depths[~condition] = depths[grid[~condition][:,0], grid[~condition][:,1]] - depths1[grid1[~condition][:,0], grid1[~condition][:,1]]    
+    delta_heights[~condition] = z[grid[~condition][:,0], grid[~condition][:,1]] - z1[grid1[~condition][:,0], grid1[~condition][:,1]]
 
 
         #set non physical changes to none
@@ -356,8 +325,8 @@ while(1):
     ang_horizontal = flow[:,:,0]* theta_horizontal *np.pi/180 #rad
     ang_vertical = flow[:,:,1]* theta_vertical *np.pi/180 #rad
 
-    u  = np.tan(ang_horizontal/2) * depths 
-    v = np.tan(ang_vertical/2) * depths
+    u  = np.tan(ang_horizontal/2) * depths *2
+    v = np.tan(ang_vertical/2) * depths *2
 
     speed = np.sqrt(u**2 + v**2 + delta_depths**2) *1/5 #m/s
     speed = cv.bitwise_and(speed, speed, mask=disp_mask)
@@ -379,20 +348,20 @@ while(1):
 
     #plt.show()
     #plot
-    # fig, (x,ax) = plt.subplots(1,2, sharex= True, sharey= True)
-    # im = cv.cvtColor(rimgL, cv.COLOR_RGB2BGR)
-    # x.imshow(im)
-    # x.set_xlabel('Left camera')
+    fig, (x,ax) = plt.subplots(1,2, sharex= True, sharey= True)
+    im = cv.cvtColor(rimgL, cv.COLOR_RGB2BGR)
+    x.imshow(im)
+    x.set_xlabel('Left camera')
 
-    # ax.set_xlabel('Heights (m)')
-    # disp = ax.imshow(z,'coolwarm', vmin = 800, vmax = 8000)
-    # divider = make_axes_locatable(ax)
-    # cax = divider.append_axes('right', size='5%', pad=0.05)
-    # fig.colorbar(disp, cax=cax, orientation='vertical')
+    ax.set_xlabel('Heights (m)')
+    disp = ax.imshow(z,'coolwarm', vmin = 800, vmax = 8000)
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes('right', size='5%', pad=0.05)
+    fig.colorbar(disp, cax=cax, orientation='vertical')
     counting = str(count)
-    counting.zfill(5)
-    #file_name = 'gif_plots/heights' + counting + '.png'
-    #fig.savefig(file_name, format='png')
+    
+    file_name = 'gif_plots/heights' + counting.zfill(5) + '.png'
+    fig.savefig(file_name, format='png')
     #plt.show()
 
     #fig5, ax5 = plt.subplots(1,1)
