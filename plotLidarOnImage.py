@@ -47,22 +47,22 @@ if vidcapR.isOpened()== False:
     print("Error opening right camera")
 
 success_coords = []
-camera_time = hour + 10/3600    # video does not start precisely on the hour
-for frame_no in range(0, 150):
-    camera_time += 5/3600
+camera_time = hour + 10/3600 + 13/72 # video does not start precisely on the hour
+for frame_no in range(129, 150):
     vidcapR.set(cv.CAP_PROP_POS_FRAMES,frame_no) # Where frame_no is the frame you want
     successR, imgRLarge = vidcapR.read() # Read the frame
     if successR == True:
+        camera_time += 5/3600
         img = cv.resize(imgRLarge,(640,480),fx=0,fy=0, interpolation = cv.INTER_CUBIC)
         img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
+        fig, (ax, ax2) = plt.subplots(2,1)
+        ax.imshow(img)
         for time in decimal_time:
                 if np.abs(time-camera_time) < 2.5/3600:
                     i = list(decimal_time).index(time)
                     cloudindex, cloud = findCloud(backscatter[i], 500)
                     if cloud is not None:
-                        print(decimal_time)
-                        fig, (ax, ax2) = plt.subplots(2,1)
-                        ax.imshow(img)
+                        print(frame_no)
                         ax2.set_title('Frame {:0}'.format(frame_no))
                         ax2.plot(ld.getDistance()[i], ld.getBackscatter()[i])
                         ax2.plot(cloud, ld.getBackscatter()[i][cloudindex], 'x')
