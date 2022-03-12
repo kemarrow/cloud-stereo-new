@@ -227,13 +227,8 @@ while(1):
 
     #prvsR1  = cv.bitwise_and(prvsR1, prvsR1, mask=mask_C1[:, :, 0])
     #prvsL1  = cv.bitwise_and(prvsL1, prvsL1, mask=mask_C3[:, :, 0])
-
     
 
-        #Undistort images
-    
-                
-       
 
     #maskL = backSub.apply(imgL)
     #maskL1 = backSub.apply(prvsL1)
@@ -277,8 +272,8 @@ while(1):
 
     
         #convert to depth
-    im3d = cv.reprojectImageTo3D(disparity_map2/16, Q, handleMissingValues = True)
-    im3d1 = cv.reprojectImageTo3D(disparity_map1/16, Q, handleMissingValues = True)
+    im3d = cv.reprojectImageTo3D((disparity_map2-32)/16, Q, handleMissingValues = True)
+    im3d1 = cv.reprojectImageTo3D((disparity_map1-32)/16, Q, handleMissingValues = True)
 
     im3d = cv.bitwise_and(im3d, im3d, mask=disp_mask)
     im3d1 = cv.bitwise_and(im3d1, im3d1, mask=disp_mask1)
@@ -328,9 +323,20 @@ while(1):
     #filtering pixels which move outside the image frame
     condition = (grid[:,:,1]>639) | (grid[:, :,0]<0) |(grid[:,:, 0]>479)| (grid[:,:, 1]<0)
     condition1 = (grid1[:,:,1]>639) | (grid1[:, :,0]<0) |(grid1[:,:, 0]>479)| (grid1[:,:, 1]<0)
+
+    print(condition)
+    print(condition1)
+    
     #change in depth between 2 frames
-    delta_depths[~condition] = depths[grid[~condition][:,0], grid[~condition][:,1]] - depths1[grid1[~condition1][:,0], grid1[~condition1][:,1]]    
-    delta_heights[~condition] = z[grid[~condition][:,0], grid[~condition][:,1]] - z1[grid1[~condition1][:,0], grid1[~condition1][:,1]]
+    delta_depths[~condition] = depths[grid[~condition][:,0], grid[~condition][:,1]] - depths1[grid[~condition][:,0], grid[~condition][:,1]]    
+    #change in height between 2 frames
+    delta_heights[~condition] = z[grid[~condition][:,0], grid[~condition][:,1]] - z1[grid1[~condition][:,0], grid1[~condition][:,1]]
+    #delta_heights = delta_heights[~condition]
+    
+    print(np.nanmax(delta_heights[~condition]))
+    print(np.nanmax(delta_heights))
+    print(np.shape(delta_heights))
+    break
     #new bit end ______________________________
     
     fig, ((ax1,ax2), (ax3,ax4))  = plt.subplots(2,2, sharex = True, sharey = True)

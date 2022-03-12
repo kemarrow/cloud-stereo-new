@@ -6,7 +6,6 @@ finds optical flow and depth map for each frame
 
 import numpy as np
 import cv2 as cv
-#from bearings import rotation_matrix, translation_vector, baseline_dist
 from mask2 import mask_C1, mask_C3
 from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -104,12 +103,13 @@ theta_vertical = vertical_fov/h #degree/pixel
 cloud_speed= []
 cloud_height=[]
 cloud_updraft=[]
+cloud_depths=[]
 count  = 0
 while(1):
     ret, frame2 = cap.read()
     success, imgR = vidcapR.read()
-    imgRR =imgR
-    imgLL = imgL
+    #imgRR =imgR
+    #imgLL = imgL
     success2, imgL = vidcapL.read()
     #ret2, img2 = cap2.read()
     #img2 = cv.cvtColor(img2, cv.COLOR_BGR2GRAY)
@@ -205,8 +205,7 @@ while(1):
     #prvsL1  = cv.bitwise_and(prvsL1, prvsL1, mask=mask_C3[:, :, 0])
 
         #Undistort images
-    
-                  
+          
     #maskL = backSub.apply(imgL)
     #maskL1 = backSub.apply(prvsL1)
     #rimgRm = cv.bitwise_and(frame, frame, mask=fgMask)
@@ -267,6 +266,7 @@ while(1):
 
     depths = np.sqrt(im3d[:,:,0]**2 + im3d[:,:,1]**2 + im3d[:,:,2]**2)
     depths = cv.bitwise_and(depths, depths, mask=disp_mask)
+    depths[depths  ==  disp_mask] = None
     depths[depths > 5000] = None
     angle  = np.arccos(im3d[:,:,2]/depths)
     z = depths * np.sin(angle + tilt) + height_camera
@@ -276,45 +276,94 @@ while(1):
 
     depths1 = np.sqrt(im3d1[:,:,0]**2 + im3d1[:,:,1]**2 + im3d1[:,:,2]**2)
     depths1 = cv.bitwise_and(depths1, depths1, mask=disp_mask1)
+    depths1[depths1  ==  disp_mask1] = None
     depths1[depths1 > 5000] = None
     angle1  = np.arccos(im3d1[:,:,2]/depths1)
     z1 = depths1 * np.sin(angle1 + tilt) + height_camera
     z1 = cv.bitwise_and(z1, z1, mask=disp_mask1)
     z1[z1==disp_mask1]=None
     #change in depth between 2 frames
-    delta_depths =[]
-    for  r, valuex in enumerate(depths1):
+    #new bit start______________________________
+    #creating grids 
+
+    grid1 = np.stack(np.meshgrid(np.arange(480), np.arange( 640))).swapaxes(0, -1)
+    #grid1= np.round(grid1).astype(int)
+    grid = grid1 + flow
+    grid = np.round(grid).astype(int)
+    
+    #creating empty arrays
+    delta_depths = np.empty((480,640))
+    delta_depths[:]=np.nan
+    delta_heights = np.empty((480,640))
+    delta_heights[:]=np.nan
+    
+    # #filtering pixels which move outside the image frame
+    condition = (grid[:,:,1]>639) | (grid[:, :,0]<0) |(grid[:,:, 0]>479)| (grid[:,:, 1]<0)
+    condition1 = (grid1[:,:,1]>639) | (grid1[:, :,0]<0) |(grid1[:,:, 0]>479)| (grid1[:,:, 1]<0)
+    # #change in depth between 2 frames
+
+    #print(min(grid[~condition]))
+
+    #print(depths[grid[~condition][:,0], grid[~condition][:,1]])
+
+    delta_depths[~condition] = depths[grid[~condition][:,0], grid[~condition][:,1]] - depths1[grid1[~condition][:,0], grid1[~condition][:,1]]    
+    # #change in height between 2 frames
+    delta_heights[~condition] = z[grid[~condition][:,0], grid[~condition][:,1]] - z1[grid1[~condition][:,0], grid1[~condition][:,1]]
+    # #new bit end ______________________________
+
+    #print(np.nanmax(delta_heights[~condition]))
+    #print(np.nanmax(delta_heights))
+    #print(np.shape(delta_heights))
+
+    #plt.imshow(delta_heights)
+
+    delta_depths_old =[]
+    for  r, valuex in enumerate(depths):
         for  i, value in enumerate(valuex):
             #print(flow[r,i,0])
-            y = r+round(flow[r,i,0])
-            x = i+round(flow[r,i,1])
-            if x<0 or y<0 or x> 639 or y>  479:
+            x = r+round(flow[r,i,0])
+            y = i+round(flow[r,i,1])
+            if x<0 or y<0 or x> 479 or y> 639:
                 delta_depth = 50000#depths[r,i] - depths1[r,i]
-                delta_depths.append(delta_depth)
+                delta_depths_old.append(delta_depth)
             else:
-                delta_depth = depths[y, x] - depths1[r,i]
-                delta_depths.append(delta_depth)
-    delta_depths=np.reshape(delta_depths,(480,640))
+                delta_depth = depths[x, y] - depths1[r,i]
+                delta_depths_old.append(delta_depth)
+    delta_depths_old=np.reshape(delta_depths_old,(480,640))
 
-    #change in height between 2 frames
-    delta_heights = []
-    for  p, valuehx in enumerate(z1):
+        #change in height between 2 frames
+    delta_heights_old = []
+    for  p, valuehx in enumerate(z):
         for q, valueh in enumerate(valuehx):
             #print(flow[r,i,0])
-            y = p+round(flow[p,q,0])
-            x = q+round(flow[p,q,1])
-            if x<0 or y<0 or x> 639 or y> 479:
+            x = p+round(flow[p,q,0])
+            y = q+round(flow[p,q,1])
+            if x<0 or y<0 or x> 479 or y> 639:
                 delta_height = 50000#depths[r,i] - depths1[r,i]
-                delta_heights.append(delta_height)
+                delta_heights_old.append(delta_height)
             else:
-                delta_height = z[y, x] - z1[p,q]
-                delta_heights.append(delta_height)
-    delta_heights=np.reshape(delta_heights,(480,640))
+                delta_height = z[x, y] - z1[p,q]
+                delta_heights_old.append(delta_height)
+
     
+    delta_heights_old=np.reshape(delta_heights_old,(480,640))
+    delta_heights_old[delta_heights_old ==50000] = None
+    #print()
+    #plt.imshow(delta_heights_old)
+    #print(np.nanmax(delta_heights))
+    #print(np.shape(delta_heights))
+
+    #plt.show()
+
+    #break
+
         #set non physical changes to none
     #delta_heights[delta_heights==0] = None
     #delta_depths[delta_depths==0] = None
     delta_heights[abs(delta_heights)>1000] = None
+    delta_heights_old[abs(delta_heights_old)>1000] = None
+
+    
     delta_depths[abs(delta_depths)>1000] = None
 
     depths[depths == 0]  = None
@@ -340,114 +389,47 @@ while(1):
     updraft[updraft > 5000] = None
     #speed[speed1D ==0] = 0
 
+    print(np.shape(delta_heights))
+    print(np.shape(delta_heights_old))
+    print(np.isnan(delta_heights).sum())
+    print(np.isnan(delta_heights_old).sum())
+
+    fig5, (ax5, ax6) = plt.subplots(1,2)
+    ax5.imshow(rimgL)
+    ax5.imshow(np.log(delta_heights))
+    ax6.imshow(rimgL)
+    ax6.imshow(np.log(delta_heights_old))
+    plt.show()
+
+    print('hi')
+    delta_heights = delta_heights.flatten()
+    delta_heights_old = delta_heights_old.flatten()
+    print('hiiiiiii')
+
+
+    fig5, (ax5, ax6) = plt.subplots(1,2)
+    n, bins, patches = ax5.hist(delta_heights*5, 1000, alpha=0.75, label='Data')
+    nold, binsold, patchesold = ax6.hist(delta_heights_old*5, 1000, alpha=0.75, label='Data')
+    print('yooooo')
+    #idx = (~np.isnan(delta_heights))
+    #bins1 = np.linspace(-1000, 1000, 1000)
+    #bin_centre = (bins[:-1] + bins[1:]) / 2
+    ax5.set_xlabel('Change in height from frame to frame (m)')
+    ax5.set_ylabel('Number of pixels')
+    ax5.set_xlim(-500, 500)
+    ax6.set_xlim(-500, 500)
+    plt.show()
+    break
+
     cloud_height.append(z1)
+    cloud_depths.append(depths1)
     cloud_speed.append(speed)
     cloud_updraft.append(updraft)
-
-    #heat map  of change in height vs height
-    # updraft_flat = updraft.flatten()
-    # xh = z.flatten()
-    # idxh = (~np.isnan(xh+updraft_flat))
-    
-    # fig7, (ax6, ax7) = plt.subplots(1,2)
-    # Hh, xedgesh, yedgesh = np.histogram2d(xh[idxh], updraft_flat[idxh], bins=(100, 100))
-    # extenth = [xedgesh[0], xedgesh[-1], yedgesh[0], yedgesh[-1]]
-    # upd = ax7.imshow(Hh.T, extent=extenth, interpolation='nearest', origin='lower', cmap='coolwarm', aspect='auto')
-    # dividerh = make_axes_locatable(ax7)
-    # cax7 = dividerh.append_axes('right', size='5%', pad=0.05)
-    # fig7.colorbar(upd, cax=cax7, orientation='vertical')
-
-    # ax7.set_xlabel('Height (m)')
-    # ax7.set_ylabel('Updraft (m/s)')
-    # #ax7.set_title('histogram2d')
-
-    # #heat map  of speed vs height
-    # x = z.flatten()
-    # y = speed.flatten()
-    # #print(x.shape)
-    # idx = (~np.isnan(x+y))
-    # #fig6, ax6 = plt.subplots(1,1)
-    # H, xedges, yedges = np.histogram2d(x[idx], y[idx], bins=(100, 100), range=[[500, 9000], [0,20]] )
-    # extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
-    # print(extent)
-    # print(np.shape(extent))
-
-    # print('shape', np.shape(H.T))
-    # spd = ax6.imshow(H.T, extent=extent, interpolation='nearest', origin='lower', cmap='coolwarm', aspect='auto')
-    
-    # divider = make_axes_locatable(ax6)
-    # cax6 = divider.append_axes('right', size='5%', pad=0.05)
-    
-    # fig7.colorbar(spd, cax=cax6, orientation='vertical')
-    # #ax6.plot(6.687242798, 6.687242798)
-    # #ax6.axvline(x=1280.09, color='black', linestyle='-')
-    # #ax6.axvline(x=1066.74, color='black', linestyle='-')
-    # #ax6.axhline(y=6.687242798, color='black', linestyle='-')
-    # ax6.set_xlabel('Height (m)')
-    # ax6.set_ylabel('Speed (m/s)')
-    # #ax6.set_title('histogram2d')
-    # #ax6.grid()
-
-    # spd = y[idx]
-    # alt = x[idx]
-    # spd[spd>20] = None
-    # idx3 = (~np.isnan(alt+spd))
-
-
-    # numbins = 100
-    
-    # df = pd.DataFrame({'altitude': alt[idx3], 'speed':spd[idx3]})
-    # bins = pd.cut(df['altitude'], numbins)
-    
-    # altitude = df.groupby(bins)['speed'].median()
-    # count  = df.groupby(bins)['altitude'].count().rename('Count')
-    # df2 = pd.concat([altitude, count], axis=1)
-    
-    # df2.loc[df2.Count < 400, 'speed']  = None
-    # print('Im here')
-    # print(df2.head())
-    # df3 = df2
-    # #len(df3.iloc[:,0])
-    # minbin = np.nanmin(alt[idx3])
-    # maxbin= np.nanmax(alt[idx3])
-
-    # sizeofbin = (maxbin-minbin)/numbins
-    # print(minbin)
-    # print(maxbin)
-    # #minalt = np.nanmin(df3.iloc[:,0])
-    # #print(minalt)
-    # minalt = min(alt[idx3])
-    # alt_bins = []
-    # for i in range(0, len(df3.iloc[:,0]), 1):
-    #     p = minalt + (2*i+1)*sizeofbin/2
-    #     alt_bins.append(p)
-    # #print(df2.count())
-    # #df2['count_of'] = df.groupby(bins)['speed'].count()
-    # #df2 = df2.mean()  #.mean()
-    # #df3.plot(y='speed')
-    # ax6.plot(alt_bins,df3.iloc[:,0], color='k')
-
-    # plt.show()
-    # quit()
-
-    #cv.imshow('frame2', bgr)
-    #cv.imshow('frame1',frame2)
-    #cv.imshow('depths',delta_depths)
-    #mag[mag == 0]  = None
-
-    #plot the optical flow on the image
-    #fig2, ax2 = plt.subplots(1,1)
-    #ax2.imshow(img) 
-    #x,y = np.meshgrid(np.linspace(0,640,640),np.linspace(0,480,480))
-    #ax2.quiver(x, y, u, v, color  = 'red')
-    #plt.show()
 
     k = cv.waitKey(30) & 0xff
     if k == 27:
         break
-    #elif k == ord('s'):
-        #cv.imwrite('opticalfb.png', frame2)
-        #cv.imwrite('opticalhsv.png', bgr)
+  
     prvs = next
     prvsR1 = imgR
     prvsL1 = imgL
@@ -455,25 +437,28 @@ while(1):
         break
 cv.destroyAllWindows()
 
-cloud_height  = np.reshape(cloud_height, (480*640*count, 1))
-cloud_speed  = np.reshape(cloud_speed, (480*640*count, 1))
-cloud_updraft  = np.reshape(cloud_updraft, (480*640*count, 1))
+# cloud_height  = np.reshape(cloud_height, (480*640*count, 1))
+# cloud_speed  = np.reshape(cloud_speed, (480*640*count, 1))
+# cloud_updraft  = np.reshape(cloud_updraft, (480*640*count, 1))
+# cloud_depth  = np.reshape(cloud_depths, (480*640*count, 1))
 
-with open('cloud_height_'+date+'.pkl','wb') as f:
-    pickle.dump(cloud_height, f)
+# with open('cloud_height_'+date+'loictest.pkl','wb') as f:
+#     pickle.dump(cloud_height, f)
 
-with open('cloud_speed_'+date+'.pkl','wb') as f:
-    pickle.dump(cloud_speed, f)
+# with open('cloud_speed_'+date+'loictest.pkl','wb') as f:
+#     pickle.dump(cloud_speed, f)
 
-with open('cloud_updraft_'+date+'.pkl','wb') as f:
-    pickle.dump(cloud_updraft, f)
+#with open('cloud_updraft_'+date+'loictest.pkl','wb') as f:
+    #pickle.dump(cloud_updraft, f)
+
+#with open('cloud_depth_'+date+'loictest.pkl','wb') as f:
+    #pickle.dump(cloud_depth, f)
+
 
 #with open('data/speeds_'+date+'.pkl', 'wb') as f:
     #pickle.dump(data, f)
 
-#np.savetxt('data/cloud_height_'+date+'.csv', cloud_height , delimiter=',', fmt='%s')
-#np.savetxt('data/cloud_speed_'+date+'.csv', cloud_speed , delimiter=',', fmt='%s')
-#np.savetxt('data/cloud_updraft_'+date+'.csv', cloud_updraft , delimiter=',', fmt='%s')
+
 
 
 print('done')
