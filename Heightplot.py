@@ -71,23 +71,39 @@ mapRx, mapRy = cv.initUndistortRectifyMap(new_camera_matrixright, Distort_right,
 
 model = ptlflow.get_model('flownet2', pretrained_ckpt='things') #other models are here: https://ptlflow.readthedocs.io/en/latest/models/models_list.html
 
-#Set disparity parameters
-#Note: disparity range is tuned according to specific parameters obtained through trial and error.
-win_size = 11
+# #Set disparity parameters
+# #Note: disparity range is tuned according to specific parameters obtained through trial and error.
+# win_size = 11
+# min_disp = 0
+# max_disp = 4
+# num_disp = 16*max_disp - 16*min_disp # Needs to be divisible by 16
+
+# #Create Block matching object.
+# stereo = cv.StereoSGBM_create(minDisparity= min_disp,
+#  numDisparities = num_disp,
+#  blockSize = 11,
+#  uniquenessRatio = 13,
+#  speckleWindowSize = 176,
+#  speckleRange = 3,
+#  disp12MaxDiff = 6,
+#  P1 = 8*3*win_size**2,
+#  P2 =32*3*win_size**2)
+
+win_size = 8
 min_disp = 0
-max_disp = 4
+max_disp = 7
 num_disp = 16*max_disp - 16*min_disp # Needs to be divisible by 16
 
 #Create Block matching object.
 stereo = cv.StereoSGBM_create(minDisparity= min_disp,
- numDisparities = num_disp,
- blockSize = 11,
- uniquenessRatio = 13,
- speckleWindowSize = 176,
- speckleRange = 3,
- disp12MaxDiff = 6,
- P1 = 8*3*win_size**2,
- P2 =32*3*win_size**2)
+  numDisparities = num_disp,
+  blockSize = 9,
+  uniquenessRatio = 13,
+  speckleWindowSize = 5,
+  speckleRange = 14,
+  disp12MaxDiff = 7,
+  P1 = 8*3*win_size**2,
+  P2 =32*3*win_size**2)
 
 #It is based on Gunner Farneback's algorithm which is explained in "Two-Frame Motion Estimation Based on Polynomial Expansion" by Gunner Farneback in 2003.
 # date = '2021-10-24_12A'
@@ -288,8 +304,8 @@ while(1):
 
     
         #convert to depth
-    im3d = cv.reprojectImageTo3D(disparity_map2/16, Q, handleMissingValues = True)
-    im3d1 = cv.reprojectImageTo3D(disparity_map1/16, Q, handleMissingValues = True)
+    im3d = cv.reprojectImageTo3D((disparity_map2-32)/16, Q, handleMissingValues = True)
+    im3d1 = cv.reprojectImageTo3D((disparity_map1-32)/16, Q, handleMissingValues = True)
 
     im3d = cv.bitwise_and(im3d, im3d, mask=disp_mask)
     im3d1 = cv.bitwise_and(im3d1, im3d1, mask=disp_mask1)
@@ -303,7 +319,7 @@ while(1):
     im3d1[im3d1 == -np.inf] = None
     im3d1[im3d1 > 9000] = None
 
-    tilt = 23 * np.pi/180
+    tilt = 23.7 * np.pi/180
     height_camera = 46
 
     depths = np.sqrt(im3d[:,:,0]**2 + im3d[:,:,1]**2 + im3d[:,:,2]**2)
@@ -367,7 +383,7 @@ while(1):
 
     updraft  = delta_heights* 1/5
     updraft = cv.bitwise_and(updraft, updraft, mask=disp_mask)
-    updraft[updraft == disp_mask] = None
+    updraft[updraft == 0] = None
     #updraft[updraft == 0] = None
     updraft[updraft > 5000] = None
     #speed[speed1D ==0] = 0

@@ -8,8 +8,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2 as cv
 
-from lidarCameraMatching import lidarH, transform
 from lidarPlots import LidarData, findCloud
+
+lidarH = np.array([[ 1.36071800e+01, -9.17182893e-01, -2.00941892e+03],
+       [ 7.76186504e-01, -1.45996552e+01,  5.07045411e+02],
+       [ 1.67058286e-03,  7.20348355e-04,  1.00000000e+00]])
 
 def singleTransform(coord, mat):
     coord = list(coord)
@@ -20,10 +23,8 @@ def singleTransform(coord, mat):
     val = np.array(val)
     return val   
 
-fp = 'frames/lowres_output_C1_20211004_11/'
-# img = cv.imread(fp + 'C1_041021_frame_{}.jpg') # camera 1 image
-
-filename = 'lidar/User5_18_20211009_120008.hpl.txt'
+filepath = "C:/Users/kathe/OneDrive - Imperial College London/MSci Project/lidar/"
+filename = filepath + 'User5_18_20211022_111000.hpl'
 
 # want to take a camera image and plot the lidar onto it then use the findcloud thing to spot the clouds
 
@@ -35,35 +36,51 @@ elev = data_locs[:,2]
 distance = ld.getDistance()
 backscatter = ld.getBackscatter()
 
+prefix_right = 'tl'
+prefix_left = 'tl4'
+vidfolder = "C:/Users/kathe/OneDrive - Imperial College London/MSci Project/Videos/"
+dtime = '2021-10-22'
+hour = 11
+vidcapR = cv.VideoCapture(f'{vidfolder}/{prefix_right}_{dtime}_{hour:0>2}A.mp4')
+# Check if camera opened successfully
+if vidcapR.isOpened()== False:
+    print("Error opening right camera")
+
 success_coords = []
-camera_time = 11    
-for frame in range(0, 10):
+camera_time = hour + 10/3600    # video does not start precisely on the hour
+for frame_no in range(0, 150):
     camera_time += 5/3600
-    img = cv.imread(fp+'C1_041021_frame_{:0}.jpg'.format(frame))
-    # fig, ax = plt.subplots(1,1)
-    # fig2, ax2 = plt.subplots(1,1)
-    # ax.imshow(img)
-    # ax.set_title('Frame {:0}'.format(frame))
-    for time in decimal_time:
-            if np.abs(time-camera_time) < 0.001:
-                i = list(decimal_time).index(time)
-                cloudindex, cloud = findCloud(backscatter[i], 500)
-                # ax2.plot(ld.getDistance()[i], ld.getBackscatter()[i])
-                # if cloud is not None:
-                #     ax2.plot(cloud, ld.getBackscatter()[i][cloudindex], 'x')
-                # ax2.set_xlabel('distance (m)')
-                # ax2.set_ylabel('backscatter')
-                # ax2.set_title('Lidar in frame {:0}'.format(frame))
-                # plt.show()
-                point = np.array((azi[i], elev[i]))
-                new = singleTransform(point, lidarH)
-                # print(new)
-                # if findCloud(backscatter[i], 500) == (None, None):
-                #     ax.plot(new[0], new[1], 'rx')
-                # else:
-                #     ax.plot(new[0], new[1], 'gx')
-#                 if cloud is not None:    
-#                     success_coords.append(np.array([point, cloud, time]))
+    vidcapR.set(cv.CAP_PROP_POS_FRAMES,frame_no) # Where frame_no is the frame you want
+    successR, imgRLarge = vidcapR.read() # Read the frame
+    if successR == True:
+        img = cv.resize(imgRLarge,(640,480),fx=0,fy=0, interpolation = cv.INTER_CUBIC)
+        img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
+        for time in decimal_time:
+                if np.abs(time-camera_time) < 2.5/3600:
+                    i = list(decimal_time).index(time)
+                    cloudindex, cloud = findCloud(backscatter[i], 500)
+                    if cloud is not None:
+                        print(decimal_time)
+                        fig, (ax, ax2) = plt.subplots(2,1)
+                        ax.imshow(img)
+                        ax2.set_title('Frame {:0}'.format(frame_no))
+                        ax2.plot(ld.getDistance()[i], ld.getBackscatter()[i])
+                        ax2.plot(cloud, ld.getBackscatter()[i][cloudindex], 'x')
+                        ax2.set_xlabel('distance (m)')
+                        ax2.set_ylabel('backscatter')
+                        ax2.set_title('Lidar in frame {:0}'.format(frame_no))
+                        point = np.array((azi[i], elev[i]))
+                        new = singleTransform(point, lidarH)
+                        ax.plot(new[0], new[1], 'rx')
+                        plt.show()
+                    # print(new)
+                    # if findCloud(backscatter[i], 500) == (None, None):
+                    #     ax.plot(new[0], new[1], 'rx')
+                    # else:
+                    #     ax.plot(new[0], new[1], 'gx')
+    #                 if cloud is not None:    
+    #                     success_coords.append(np.array([point, cloud, time]))
+vidcapR.release()
 
 # success_coords = np.array(success_coords)
 

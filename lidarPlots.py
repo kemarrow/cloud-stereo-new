@@ -5,6 +5,7 @@ Created on Tue Feb  8 12:51:17 2022
 @author: kathe
 """
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 class LidarData():
@@ -85,7 +86,7 @@ class LidarData():
         
 # should just add this to class? 
     
-def findCloud(backscatter, dist_thresh=300):
+def findCloud(backscatter, dist_thresh=500):
     # np.argmax returns the index of where the backscatter is highest
     # index in this case = range gate i.e. distance
     if np.max(backscatter) > 10:
@@ -98,3 +99,48 @@ def findCloud(backscatter, dist_thresh=300):
     else:
         # print('no clouds')
         return (None, None)
+    
+# ### Plot things! ###    
+    
+# filepath = "C:/Users/kathe/OneDrive - Imperial College London/MSci Project/lidar/"
+# filename = filepath + 'User5_18_20211022_111000.hpl'
+# # this file is the full calibration scan
+# # filename = filepath+"User1_18_20210916_095204.hpl"
+
+
+# ld = LidarData.fromfile(filename)
+
+# data_locs = ld.data_locs
+# elev = (ld.data_locs[:, 2]*10).astype('int')/10
+# elev_steps = len(np.unique(elev))
+
+# azi = (ld.data_locs[:, 1]*10).astype('int')/10
+
+# backscatter_max = np.max(ld.data[:, 1:600, 2], axis=1).reshape((elev_steps, -1))
+
+# dist_array = np.argmax(ld.data[:, 3:600, 2], axis=1).reshape((elev_steps, -1))+3
+# #dist_array[backscatter_max<2] = 500
+
+
+# for a in range(0,100):
+#     cloudindex, cloud = findCloud(ld.getBackscatter()[a])
+
+#     if cloud is not None:
+#         print(a)
+#         fig, (ax1,ax2,ax3) = plt.subplots(3,1)
+#         ax1.plot(ld.getDistance()[a], ld.getBackscatter()[a])
+#         ax1.plot(cloud, ld.getBackscatter()[a][cloudindex], 'x')
+#         ax1.set_xlabel('distance (m)')
+#         ax1.set_ylabel('backscatter')
+        
+#         ax2.plot(ld.getDistance()[a], ld.getBeta()[a])
+#         ax2.set_ylabel('beta')
+#         # ax2.set_yscale('log')
+        
+#         ax3.plot(ld.getDistance()[a], ld.getDoppler()[a])
+#         ax3.plot(cloud, ld.getDoppler()[a][cloudindex], 'x')
+#         ax3.set_ylabel('Doppler')
+#         ax3.set_yscale('log')
+
+#         print(ld.getDoppler()[a][cloudindex])
+# plt.show()

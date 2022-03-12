@@ -6,7 +6,6 @@ finds optical flow and depth map for each frame
 
 import numpy as np
 import cv2 as cv
-from bearings import rotation_matrix, translation_vector, baseline_dist
 from mask2 import mask_C1, mask_C3
 from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -90,9 +89,18 @@ stereo = cv.StereoSGBM_create(minDisparity= min_disp,
 
 #It is based on Gunner Farneback's algorithm which is explained in "Two-Frame Motion Estimation Based on Polynomial Expansion" by Gunner Farneback in 2003.
 date = '2021-10-24_12A'
-vidcapR = cv.VideoCapture('Videos/lowres_C1_'+ date+'.mp4')
-vidcapL = cv.VideoCapture('Videos/C3_'+ date+'.mp4')
-cap = cv.VideoCapture('Videos/C3_'+date+'.mp4')
+# vidcapR = cv.VideoCapture('Videos/lowres_C1_'+ date+'.mp4')
+# vidcapL = cv.VideoCapture('Videos/C3_'+ date+'.mp4')
+# cap = cv.VideoCapture('Videos/C3_'+date+'.mp4')
+
+prefix_right = 'tl'
+prefix_left = 'tl4'
+vidfolder = "C:/Users/kathe/OneDrive - Imperial College London/MSci Project/Videos"
+dtime = '2021-10-24'
+hour = 12
+vidcapR = cv.VideoCapture(f'{vidfolder}/{prefix_right}_{dtime}_{hour:0>2}A.mp4')
+vidcapL = cv.VideoCapture(f'{vidfolder}/{prefix_left}_{dtime}_{hour:0>2}A.mp4')
+cap = cv.VideoCapture(f'{vidfolder}/{prefix_left}_{dtime}_{hour:0>2}A.mp4')
 
 #cap2 = cv.VideoCapture('depth_10_24_12A.mp4')
 ret, frame1 = cap.read()
@@ -100,7 +108,12 @@ ret, frame1 = cap.read()
 backSub = cv.createBackgroundSubtractorKNN()
 #backSub = cv.createBackgroundSubtractorMOG2(detectShadows= True) #default is True, not sure which one to choose
 
-success, imgR = vidcapR.read()
+# for if you need to resize the camera 1 video to 640x480
+success, imgRLarge = vidcapR.read()
+imgR = cv.resize(imgRLarge,(640,480),fx=0,fy=0, interpolation = cv.INTER_CUBIC)
+
+# success, imgR = vidcapR.read()
+
 success2, imgL = vidcapL.read()
 
 prvsR1 = imgR
@@ -120,10 +133,11 @@ theta_vertical = vertical_fov/h #degree/pixel
 cloud_speed= []
 cloud_height=[]
 cloud_updraft=[]
-count  = 0
+count = 0
 while(1):
     ret, frame2 = cap.read()
-    success, imgR = vidcapR.read()
+    success, imgRLarge = vidcapR.read()
+    imgR = cv.resize(imgRLarge,(640,480),fx=0,fy=0, interpolation = cv.INTER_CUBIC)
     imgRR =imgR
     imgLL = imgL
     success2, imgL = vidcapL.read()
