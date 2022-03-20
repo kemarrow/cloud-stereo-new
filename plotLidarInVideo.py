@@ -11,8 +11,11 @@ import cv2
 
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
-from lidarCameraMatching import lidarH, transform
 from lidarPlots import LidarData, findCloud
+
+lidarH = np.array([[ 1.36071800e+01, -9.17182893e-01, -2.00941892e+03],
+       [ 7.76186504e-01, -1.45996552e+01,  5.07045411e+02],
+       [ 1.67058286e-03,  7.20348355e-04,  1.00000000e+00]])
 
 def singleTransform(coord, mat):
     coord = list(coord)
@@ -31,18 +34,21 @@ def flattenList(t):
     return flat_list
 
 #import camera video
-camera1 = cv2.VideoCapture('Videos/lowres_C1_2021-10-04_11A.mp4')
+vidfolder = "C:/Users/kathe/OneDrive - Imperial College London/MSci Project/Videos/"
+dtime = '2021-10-22'
+hour = 11
+prefix_right = 'tl'
+camera1 = cv2.VideoCapture(f'{vidfolder}/{prefix_right}_{dtime}_{hour:0>2}A.mp4')
 
-filepath = "lidar/20211004/"
-filename = 'User5_18_20211004_111000.hpl'
+filepath = "C:/Users/kathe/OneDrive - Imperial College London/MSci Project/lidar/"
 
 decimal_time = []
 azi = []
 elev = []
 dist = []
 
-for dtime in [1,2,3,4,5]:
-        filename = filepath + 'User5_18_20211004_11{0}000.hpl'.format(dtime)
+for time in [1,2,3,4,5]:
+        filename = filepath + 'User5_18_20211022_11{0}000.hpl'.format(time)
         ld = LidarData.fromfile(filename)
         data_locs = ld.data_locs
         decimal_time.append(list(data_locs[:,0]))
@@ -60,7 +66,7 @@ if (camera1.isOpened()== False):
     print("Error opening video stream or file")
 
 #sets the codec for the new video we wil create 
-fourcc = cv2.VideoWriter_fourcc(*'MPEG-4')
+#fourcc = cv2.VideoWriter_fourcc(*'MPEG-4')
 #out = cv2.VideoWriter('test.mp4',fourcc, 1, (640,480))
 out = cv2.VideoWriter('test4.mp4', cv2.VideoWriter_fourcc('A','V','C','1'), 10, (640,480))
 
